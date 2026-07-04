@@ -13,6 +13,9 @@ RUN apt update && \
         iputils-ping \
     && apt clean && rm -rf /var/lib/apt/lists/*
 
+# root must be in SystemGroup or lpadmin from the entrypoint gets Unauthorized
+RUN echo "SystemGroup lpadmin root" >> /etc/cups/cups-files.conf
+
 COPY cupsd.conf /etc/cups/cupsd.conf
 COPY entrypoint.sh /entrypoint.sh
 

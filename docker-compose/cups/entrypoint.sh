@@ -23,7 +23,8 @@ echo "==> Starting CUPS..."
 cupsd
 
 echo "==> Waiting for CUPS..."
-until lpstat -r >/dev/null 2>&1
+# lpstat -r exits 0 even when the scheduler is down; check the message
+until lpstat -r 2>/dev/null | grep -q "is running"
 do
     sleep 1
 done
