@@ -12,6 +12,9 @@ services:
     volumes:
       - ./data/spool:/var/spool/cups
       - ./data/log:/var/log/cups
+      # keep the self-signed cert stable across rebuilds so clients
+      # don't re-prompt trust every time
+      - ./data/ssl:/etc/cups/ssl
       - ./presets:/presets
     healthcheck:
       test: lpstat -r || exit 1
