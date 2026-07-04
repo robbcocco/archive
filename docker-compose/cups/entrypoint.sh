@@ -38,21 +38,27 @@ do
     sleep 5
 done
 
+# ping only proves the host is up; the everywhere probe needs IPP answering,
+# otherwise lpadmin silently falls back to a raw queue
+echo "==> Waiting for IPP on $HOST..."
+until ipptool -T 5 "$PRINTER_URI" get-printer-attributes.test >/dev/null 2>&1
+do
+    sleep 5
+done
+
 echo "Printer online."
 
 create_queue () {
     NAME=$1
 
-    if ! lpstat -p "$NAME" >/dev/null 2>&1
-    then
-        echo "Creating queue: $NAME"
+    # always recreate: self-heals queues that ended up raw on a previous boot
+    echo "Creating queue: $NAME"
 
-        lpadmin \
-            -p "$NAME" \
-            -E \
-            -v "$PRINTER_URI" \
-            -m everywhere
-    fi
+    lpadmin \
+        -p "$NAME" \
+        -E \
+        -v "$PRINTER_URI" \
+        -m everywhere
 }
 
 apply_preset () {
@@ -62,7 +68,8 @@ apply_preset () {
     if [ -f "$FILE" ]; then
         echo "Applying preset $NAME"
 
-        while IFS='=' read -r key value
+        # `|| [ -n "$key" ]` keeps a last line without trailing newline
+        while IFS='=' read -r key value || [ -n "$key" ]
         do
             [ -z "$key" ] && continue
             [ "${key:0:1}" = "#" ] && continue
@@ -82,9 +89,10 @@ do
     apply_preset "$NAME"
 done
 
-# default queue
-lpoptions -d "${DEFAULT_PRESET:-photo}"
+# default queue (lpoptions prints the full option list; not useful in logs)
+lpoptions -d "${DEFAULT_PRESET:-photo}" >/dev/null
 
 echo "==> Ready"
 
+touch /var/log/cups/error_log
 tail -F /var/log/cups/error_log

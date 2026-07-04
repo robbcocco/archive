@@ -7,6 +7,7 @@ RUN apt update && \
         cups \
         cups-client \
         cups-filters \
+        cups-ipp-utils \
         avahi-daemon \
         dbus \
         printer-driver-gutenprint \
