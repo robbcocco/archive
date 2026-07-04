@@ -19,7 +19,15 @@
     transition: border-color .15s, background .15s;
   }
   #drop.over { border-color: #4a9eff; background: #4a9eff22; }
-  #drop.hasfile { border-style: solid; border-color: #3c3; }
+  #drop.hasfile { border-style: solid; border-color: #3c3; padding: .8rem; }
+  #drop img, #drop embed {
+    max-width: 100%; max-height: 240px; border-radius: 6px; display: block;
+    margin: 0 auto;
+  }
+  #drop embed { width: 100%; height: 240px; }
+  #drop figcaption {
+    font-size: .8rem; opacity: .7; margin-top: .4rem; word-break: break-all;
+  }
   select, input, button {
     font: inherit; padding: .5rem .6rem; border-radius: 8px;
     border: 1px solid #8886; width: 100%;
@@ -53,6 +61,14 @@
   <div>
     <label for="copies">copies</label>
     <input id="copies" type="number" min="1" max="99" value="1">
+  </div>
+  <div>
+    <label for="orientation-requested">orientation</label>
+    <select id="orientation-requested">
+      <option value="">auto</option>
+      <option value="3">portrait</option>
+      <option value="4">landscape</option>
+    </select>
   </div>
 </div>
 
@@ -122,12 +138,38 @@ fetch("/queues").then(r => r.json()).then(qs => {
   if (qs.length === 0) show("no queues found on the cups server", true);
 });
 
+let previewUrl = null;
+
 function setFile(f) {
   file = f;
-  drop.textContent = f ? f.name : "drop a file here or click to choose";
+  if (previewUrl) { URL.revokeObjectURL(previewUrl); previewUrl = null; }
   drop.classList.toggle("hasfile", !!f);
   go.disabled = !f;
   show("");
+
+  if (!f) {
+    drop.innerHTML = "drop a file here<br>or click to choose";
+    return;
+  }
+  drop.textContent = "";
+  const fig = document.createElement("figure");
+  fig.style.margin = 0;
+  if (f.type.startsWith("image/")) {
+    previewUrl = URL.createObjectURL(f);
+    const img = document.createElement("img");
+    img.src = previewUrl;
+    fig.appendChild(img);
+  } else if (f.type === "application/pdf") {
+    previewUrl = URL.createObjectURL(f);
+    const emb = document.createElement("embed");
+    emb.src = previewUrl + "#toolbar=0";
+    emb.type = "application/pdf";
+    fig.appendChild(emb);
+  }
+  const cap = document.createElement("figcaption");
+  cap.textContent = f.name + " (" + (f.size / 1024 / 1024).toFixed(1) + " MB)";
+  fig.appendChild(cap);
+  drop.appendChild(fig);
 }
 
 drop.addEventListener("click", () => fileInput.click());
@@ -149,7 +191,7 @@ go.addEventListener("click", async () => {
   fd.append("file", file);
   fd.append("queue", document.getElementById("queue").value);
   fd.append("copies", document.getElementById("copies").value);
-  for (const k of ["media", "sides", "print-quality", "print-color-mode", "fit-to-page"])
+  for (const k of ["media", "sides", "print-quality", "print-color-mode", "fit-to-page", "orientation-requested"])
     fd.append(k, document.getElementById(k).value);
 
   go.disabled = true;

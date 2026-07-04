@@ -9,7 +9,14 @@ CUPS = os.environ.get("CUPS_SERVER", "localhost:631")
 PORT = int(os.environ.get("WEBUI_PORT", "8631"))
 
 # options the form may pass through to lp -o
-ALLOWED_OPTIONS = ("media", "sides", "print-quality", "print-color-mode", "fit-to-page")
+ALLOWED_OPTIONS = (
+    "media",
+    "sides",
+    "print-quality",
+    "print-color-mode",
+    "fit-to-page",
+    "orientation-requested",
+)
 SAFE_VALUE = re.compile(r"^[A-Za-z0-9._-]+$")
 
 app = Flask(__name__)
