@@ -1,0 +1,14 @@
+services:
+  komga:
+    image: gotson/komga:latest
+    container_name: komga
+    # komga ignores PUID/PGID (linuxserver convention); user: is the supported way
+    user: "${PUID}:${PGID}"
+    environment:
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_DIR}/.komga:/config
+      - ${COMICS_DIR}:/data
+    ports:
+      - ${KOMGA_PORT}:8080
+    restart: unless-stopped

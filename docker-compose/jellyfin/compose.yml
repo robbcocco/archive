@@ -1,0 +1,24 @@
+services:
+
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin:latest
+    container_name: jellyfin
+    environment:
+      - DOCKER_MODS=linuxserver/mods:jellyfin-opencl-intel
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_DIR}/.jellyfin:/config
+      - ${MOVIES_DIR}:/data/movies
+      - ${SHOWS_DIR}:/data/tvshows
+    ports:
+      - ${JELLYFIN_PORT}:8096
+      - 7359:7359/udp
+      - 1900:1900/udp
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - "video"
+      - "render"
+    restart: unless-stopped

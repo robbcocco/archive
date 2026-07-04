@@ -1,0 +1,263 @@
+openapi: 3.1.0
+info:
+  title: Google Tasks API
+  description: API per gestire task e task list usando l'API REST di Google Tasks.
+  version: 1.1.0
+servers:
+  - url: https://tasks.googleapis.com
+
+paths:
+  /tasks/v1/users/@me/lists:
+    get:
+      operationId: listTaskLists
+      summary: Elenca le task list dell'utente.
+      responses:
+        '200':
+          description: Elenco delle task list.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TaskList'
+    post:
+      operationId: createTaskList
+      summary: Crea una nuova task list.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskListInput'
+      responses:
+        '200':
+          description: Task list creata con successo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskList'
+
+  /tasks/v1/users/@me/lists/{tasklist}:
+    get:
+      operationId: getTaskList
+      summary: Ottiene i dettagli di una task list.
+      parameters:
+        - name: tasklist
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Dettagli della task list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskList'
+    put:
+      operationId: updateTaskList
+      summary: Modifica una task list esistente.
+      parameters:
+        - name: tasklist
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskListInput'
+      responses:
+        '200':
+          description: Task list aggiornata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskList'
+    delete:
+      operationId: deleteTaskList
+      summary: Elimina una task list.
+      parameters:
+        - name: tasklist
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Task list eliminata con successo.
+
+  /tasks/v1/lists/{tasklist}/tasks:
+    get:
+      operationId: listTasks
+      summary: Elenca i task in una task list.
+      parameters:
+        - name: tasklist
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Elenco dei task nella task list.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Task'
+    post:
+      operationId: createTask
+      summary: Crea un nuovo task in una task list.
+      parameters:
+        - name: tasklist
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskInput'
+      responses:
+        '200':
+          description: Task creato con successo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+
+  /tasks/v1/lists/{tasklist}/tasks/{task}:
+    get:
+      operationId: getTask
+      summary: Ottiene i dettagli di un task.
+      parameters:
+        - name: tasklist
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: task
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Dettagli del task.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+    put:
+      operationId: updateTask
+      summary: Modifica un task esistente.
+      parameters:
+        - name: tasklist
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: task
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskInput'
+      responses:
+        '200':
+          description: Task aggiornato.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+    delete:
+      operationId: deleteTask
+      summary: Elimina un task.
+      parameters:
+        - name: tasklist
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: task
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Task eliminato con successo.
+
+components:
+  schemas:
+    TaskList:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+    
+    TaskListInput:
+      type: object
+      properties:
+        title:
+          type: string
+      required:
+        - title
+    
+    Task:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        notes:
+          type: string
+        due:
+          type: string
+          format: date-time
+    
+    TaskInput:
+      type: object
+      properties:
+        title:
+          type: string
+        notes:
+          type: string
+        due:
+          type: string
+          format: date-time
+      required:
+        - title
+
+  securitySchemes:
+    OAuth2:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://accounts.google.com/o/oauth2/v2/auth
+          tokenUrl: https://oauth2.googleapis.com/token
+          scopes:
+            https://www.googleapis.com/auth/tasks: Accesso completo alle task di Google Tasks
+
+security:
+  - OAuth2:
+      - https://www.googleapis.com/auth/tasks

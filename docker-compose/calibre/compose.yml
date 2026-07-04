@@ -1,0 +1,69 @@
+services:
+  calibre-web:
+    container_name: calibre-web
+    #image: lscr.io/linuxserver/calibre-web:latest
+    image: crocodilestick/calibre-web-automated:latest
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      #- DOCKER_MODS=linuxserver/mods:universal-calibre
+      #- OAUTHLIB_RELAX_TOKEN_SCOPE=1
+    volumes:
+      - ${CONFIG_DIR}/.calibre-web:/config
+      - ${DOWNLOADS_DIR}/cwa-book-ingest:/cwa-book-ingest
+      - ${BOOKS_DIR}:/calibre-library
+    ports:
+      - ${CALIBRE_PORT}:8083
+    restart: unless-stopped
+
+  calibre-web-automated-book-downloader:
+    container_name: calibre-web-automated-book-downloader
+    image: ghcr.io/fededr/cwa-book-downloader:latest
+    # image: ghcr.io/calibrain/calibre-web-automated-book-downloader:latest
+    environment:
+      FLASK_PORT: 8084
+      LOG_LEVEL: info
+      BOOK_LANGUAGE: it
+      USE_BOOK_TITLE: true
+      TZ: ${TZ}
+      APP_ENV: prod
+      UID: ${PUID}
+      GID: ${PGID}
+      CWA_DB_PATH: /auth/app.db
+      # anna's archive
+      AA_BASE_URL: https://annas-archive.org
+      # FLARESOLVERR_URL: http://cwaflaresolverr:8191
+      FLARESOLVERR_URL: http://cwaflaresolverr:8080
+      FLARESOLVERR_TIMEOUT: 60000
+    ports:
+      - ${CWABD_PORT}:8084
+    volumes:
+      # This is where the books will be downloaded to, usually it would be
+      # the same as whatever you gave in "calibre-web-automated"
+      - ${DOWNLOADS_DIR}/cwa-book-ingest:/cwa-book-ingest
+      # This is the location of CWA's app.db, which contains authentication
+      # details
+      - ${CONFIG_DIR}/.calibre-web/app.db:/auth/app.db:ro
+    restart: unless-stopped
+    depends_on:
+      - cwaflaresolverr
+
+  cwaflaresolverr:
+    container_name: cwaflaresolverr
+    #image: flaresolverr/flaresolverr:latest
+    #image: ghcr.io/thephaseless/byparr:latest
+    image: ghcr.io/yoori/flare-bypasser:latest
+    environment:
+      #LOG_LEVEL: info
+      #LOG_HTML: false
+      #CAPTCHA_SOLVER: none
+      TZ: ${TZ}
+      UNUSED: "false"
+      DEBUG: "false"
+      VERBOSE: "false"
+      SAVE_CHALLENGE_SCREENSHOTS: "false"
+    ports:
+      - ${FLARESOLVERR_PORT}:8080
+      # - ${FLARESOLVERR_PORT}:8191
+    restart: unless-stopped

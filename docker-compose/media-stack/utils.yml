@@ -1,0 +1,127 @@
+services:
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - UMASK_SET=${UMASK_SET}
+    volumes:
+      - ${CONFIG_DIR}/.prowlarr:/config
+    networks:
+      - media
+    # dns:
+    #   - 9.9.9.10
+    #   - 149.112.112.10
+    ports:
+      - ${PROWLARR_PORT}:9696
+
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: bazarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    ports:
+      - ${BAZARR_PORT}:6767
+    networks:
+      - media
+    # dns:
+    #   - 9.9.9.10
+    #   - 149.112.112.10
+    volumes:
+      - ${CONFIG_DIR}/.bazarr:/config
+      - ${MOVIES_DIR}:/movies
+      - ${SHOWS_DIR}:/tvshows
+      - ${ANIMATION_DIR}:/animation
+    restart: unless-stopped
+
+  unmanic:
+    image: josh5/unmanic:latest
+    container_name: unmanic
+    devices:
+      - /dev/dri:/dev/dri
+    ports:
+      - ${UNMANIC_PORT}:8888
+    networks:
+      - media
+    # dns:
+    #   - 9.9.9.10
+    #   - 149.112.112.10
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+    volumes:
+      - ${CONFIG_DIR}/.unmanic:/config
+      - ${MOVIES_DIR}:/library/movies
+      - ${SHOWS_DIR}:/library/tvshows
+      - ${ANIMATION_DIR}:/library/animation
+      - ${CONFIG_DIR}/.unmaniccache:/tmp/unmanic
+    restart: unless-stopped
+
+  tagr:
+    image: ghcr.io/suitux/tagr:latest
+    container_name: tagr
+    restart: unless-stopped
+    ports:
+      - ${TAGR_PORT}:3000
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - NODE_ENV=production
+      - DATABASE_URL=file:/data/tagr.db
+      - AUTH_SECRET=${TAGR_AUTH_SECRET}
+      - AUTH_USER=admin
+      - AUTH_PASSWORD=${TAGR_PASSWORD}
+      - AUTH_URL=${TAGR_AUTH_URL}
+    networks:
+      - media
+    volumes:
+      - sqlite_data:/data
+      # Mount your music folder into the container:
+      - ${MUSIC_DIR}:/music
+
+  # musicseerr:
+  #   image: ghcr.io/habirabbu/musicseerr:latest
+  #   container_name: musicseerr
+  #   environment:
+  #     - PUID=${PUID}
+  #     - PGID=${PGID}
+  #     - PORT=${MUSICSEERR_PORT}
+  #     - TZ=Etc/UTC
+  #   ports:
+  #     - ${MUSICSEERR_PORT}:8688
+  #   volumes:
+  #     - ${CONFIG_DIR}/.musicseerr:/app/config
+  #     - ${CONFIG_DIR}/.musicseerrcache:/app/cache
+  #     - ${MUSIC_DIR}:/music:ro
+  #   restart: unless-stopped
+
+  flaresolverr:
+    image: flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    environment:
+      - LOG_LEVEL=info
+      - LOG_HTML=false
+      - CAPTCHA_SOLVER=none
+      - TZ=${TZ}
+      - UMASK_SET=${UMASK_SET}
+    networks:
+      - media
+    # dns:
+    #   - 9.9.9.10
+    #   - 149.112.112.10
+    ports:
+      - ${FLARESOLVERR_PORT}:8191
+    restart: unless-stopped
+
+volumes:
+  sqlite_data:
+
+networks:
+  media:
+    driver: bridge

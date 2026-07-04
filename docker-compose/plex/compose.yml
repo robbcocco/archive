@@ -1,0 +1,18 @@
+services:
+  plex:
+    image: lscr.io/linuxserver/plex:latest
+    container_name: plex
+    devices:
+      - /dev/dri:/dev/dri
+    network_mode: host
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - VERSION=docker
+    volumes:
+      - ${CONFIG_DIR}/.plex:/config
+      - ${MOVIES_DIR}:/data/movies
+      - ${SHOWS_DIR}:/data/tvshows
+      - ${ANIMATION_DIR}:/data/animation
+    restart: unless-stopped

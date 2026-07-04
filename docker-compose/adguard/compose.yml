@@ -1,0 +1,20 @@
+services:
+  adguardhome:
+    image: adguard/adguardhome:latest
+    container_name: adguardhome
+    restart: unless-stopped
+
+    network_mode: host
+    # ports:
+    #   - "53:53/tcp"
+    #   - "53:53/udp"
+    #   - "3000:3000/tcp"  # wizard iniziale
+    #   - "80:80/tcp"      # interfaccia web dopo la config
+    #   - "443:443/tcp"    # opzionale, se abiliti HTTPS
+
+    volumes:
+      - /opt/adguardhome/work:/opt/adguardhome/work
+      - /opt/adguardhome/conf:/opt/adguardhome/conf
+
+    cap_add:
+      - NET_ADMIN

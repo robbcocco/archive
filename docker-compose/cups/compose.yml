@@ -1,0 +1,18 @@
+services:
+  cups:
+    build: .
+    container_name: cups
+
+    network_mode: host
+
+    restart: unless-stopped
+
+    environment:
+      PRINTER_NAME: Canon-G650
+      PRINTER_URI: ipp://192.168.1.25/ipp/print
+
+    volumes:
+      - ./data/etc-cups:/etc/cups
+      - ./data/spool:/var/spool/cups
+      - ./data/log:/var/log/cups
+      - ./presets:/presets

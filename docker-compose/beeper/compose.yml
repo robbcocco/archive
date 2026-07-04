@@ -1,0 +1,10 @@
+services:
+  beeper-tg:
+    container_name: beeper-tg
+    image: ghcr.io/beeper/bridge-manager
+    volumes:
+      - ${CONFIG_DIR}/.beeper-tg:/data
+    environment:
+      - MATRIX_ACCESS_TOKEN=${MATRIX_ACCESS_TOKEN}
+    command: sh-telegram
+    restart: unless-stopped

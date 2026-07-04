@@ -1,0 +1,7 @@
+.DS_Store
+
+# cups runtime state (created by bind mounts on first run)
+docker-compose/cups/data/
+
+# local env files with real secrets (commit only *.env templates with placeholders)
+*.local.env
