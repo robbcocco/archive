@@ -87,6 +87,24 @@ apply_preset () {
     fi
 }
 
+# extra queue through Canon's own driver when cnijfilter2 is installed;
+# its color rendering matches the vendor output the driverless path can't
+create_canon_queue () {
+    MATCH="${CANON_MODEL_MATCH:-G600}"
+    MODEL=$(lpinfo -m 2>/dev/null | grep -i "canon" | grep -i "$MATCH" | grep -viE "driverless|everywhere|gutenprint" | head -1 | cut -d" " -f1)
+
+    [ -z "$MODEL" ] && return 0
+
+    echo "Creating queue: photo-canon (driver: $MODEL)"
+
+    lpadmin -x photo-canon 2>/dev/null || true
+    lpadmin \
+        -p photo-canon \
+        -E \
+        -v "${CANON_PRINTER_URI:-$PRINTER_URI}" \
+        -m "$MODEL"
+}
+
 for preset_file in /presets/*.conf
 do
     [ -e "$preset_file" ] || continue
@@ -96,6 +114,8 @@ do
     create_queue "$NAME"
     apply_preset "$NAME"
 done
+
+create_canon_queue
 
 # default queue (lpoptions prints the full option list; not useful in logs)
 lpoptions -d "${DEFAULT_PRESET:-photo}" >/dev/null

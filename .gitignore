@@ -7,5 +7,9 @@ docker-compose/cups/data/
 docker-compose/cups/icc/*.icc
 docker-compose/cups/icc/*.icm
 
+# proprietary Canon driver packages
+docker-compose/cups/driver/*.deb
+docker-compose/cups/driver/*.tar.gz
+
 # real env files live only on this machine / the host; commit .env.example templates
 docker-compose/*/.env

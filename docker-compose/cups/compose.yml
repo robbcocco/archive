@@ -6,6 +6,7 @@ services:
     restart: unless-stopped
     environment:
       PRINTER_URI: ${PRINTER_URI}
+      CANON_PRINTER_URI: ${CANON_PRINTER_URI:-}
       DEFAULT_PRESET: ${DEFAULT_PRESET:-photo}
       CUPS_ADMIN_USER: ${CUPS_ADMIN_USER:-admin}
       CUPS_ADMIN_PASSWORD: ${CUPS_ADMIN_PASSWORD:-}
