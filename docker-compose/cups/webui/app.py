@@ -4,9 +4,15 @@ import subprocess
 import tempfile
 
 from flask import Flask, jsonify, render_template, request
+from PIL import Image, ImageEnhance, ImageOps
 
 CUPS = os.environ.get("CUPS_SERVER", "localhost:631")
 PORT = int(os.environ.get("WEBUI_PORT", "8631"))
+
+# compensate for cups-filters' flat rasterization vs the mac/canon pipeline;
+# tune against a reference print
+ENHANCE_SATURATION = float(os.environ.get("ENHANCE_SATURATION", "1.15"))
+ENHANCE_CONTRAST = float(os.environ.get("ENHANCE_CONTRAST", "1.10"))
 
 # options the form may pass through to lp -o
 ALLOWED_OPTIONS = (
@@ -74,6 +80,18 @@ def queue_info(queue):
     return jsonify(defaults=defaults, media_types=media_types)
 
 
+def enhance_image(path):
+    with Image.open(path) as img:
+        img = ImageOps.exif_transpose(img)  # bake rotation before re-saving
+        img = img.convert("RGB")
+        img = ImageEnhance.Color(img).enhance(ENHANCE_SATURATION)
+        img = ImageEnhance.Contrast(img).enhance(ENHANCE_CONTRAST)
+        out = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
+        img.save(out.name, "JPEG", quality=95)
+    os.unlink(path)
+    return out.name
+
+
 @app.post("/print")
 def print_job():
     upload = request.files.get("file")
@@ -99,6 +117,13 @@ def print_job():
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         upload.save(tmp.name)
         path = tmp.name
+
+    if request.form.get("enhance") == "true":
+        try:
+            path = enhance_image(path)
+        except Exception as exc:
+            os.unlink(path)
+            return jsonify(error=f"enhance failed: {exc}"), 400
     try:
         result = subprocess.run(
             cmd + [path], capture_output=True, text=True, timeout=60

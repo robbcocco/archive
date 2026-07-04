@@ -127,6 +127,13 @@
         <option value="true">fit to page</option>
       </select>
     </div>
+    <div>
+      <label for="enhance">photo enhance</label>
+      <select id="enhance">
+        <option value="">off</option>
+        <option value="true">boost saturation + contrast</option>
+      </select>
+    </div>
   </div>
 </details>
 
@@ -267,6 +274,9 @@ go.addEventListener("click", async () => {
   fd.append("copies", document.getElementById("copies").value);
   for (const k of ["media", "MediaType", "sides", "print-quality", "print-color-mode", "fit-to-page", "orientation-requested"])
     fd.append(k, document.getElementById(k).value);
+  // enhancement is a raster operation, only meaningful for images
+  if (file.type.startsWith("image/") && document.getElementById("enhance").value)
+    fd.append("enhance", "true");
 
   go.disabled = true;
   show("sending…");

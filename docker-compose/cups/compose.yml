@@ -32,5 +32,7 @@ services:
     environment:
       CUPS_SERVER: localhost:631
       WEBUI_PORT: ${WEBUI_PORT:-8631}
+      ENHANCE_SATURATION: ${ENHANCE_SATURATION:-1.15}
+      ENHANCE_CONTRAST: ${ENHANCE_CONTRAST:-1.10}
     depends_on:
       - cups
