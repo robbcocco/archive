@@ -8,9 +8,10 @@ RUN apt update && \
         cups-client \
         cups-filters \
         avahi-daemon \
+        dbus \
         printer-driver-gutenprint \
         iputils-ping \
-    && apt clean
+    && apt clean && rm -rf /var/lib/apt/lists/*
 
 COPY cupsd.conf /etc/cups/cupsd.conf
 COPY entrypoint.sh /entrypoint.sh

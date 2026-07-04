@@ -1,6 +1,24 @@
 #!/bin/bash
 set -e
 
+# web admin login; skipped when no password is provided
+if [ -n "$CUPS_ADMIN_PASSWORD" ]; then
+    ADMIN_USER="${CUPS_ADMIN_USER:-admin}"
+    echo "==> Provisioning admin user $ADMIN_USER..."
+
+    if ! id "$ADMIN_USER" >/dev/null 2>&1; then
+        useradd -r -G lpadmin -s /usr/sbin/nologin "$ADMIN_USER"
+    fi
+    echo "$ADMIN_USER:$CUPS_ADMIN_PASSWORD" | chpasswd
+fi
+
+echo "==> Starting dbus/avahi (dnssd advertising)..."
+# /run survives container restarts; stale pid files block daemon startup
+rm -f /run/dbus/pid /run/avahi-daemon/pid
+mkdir -p /run/dbus
+dbus-daemon --system --fork
+avahi-daemon -D
+
 echo "==> Starting CUPS..."
 cupsd
 
@@ -64,7 +82,7 @@ do
 done
 
 # default queue
-lpoptions -d photo
+lpoptions -d "${DEFAULT_PRESET:-photo}"
 
 echo "==> Ready"
 
