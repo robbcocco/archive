@@ -52,19 +52,39 @@ echo "Printer online."
 # from a preset file would survive restarts via the stored defaults
 rm -f /etc/cups/lpoptions
 
+# prefer Canon's own driver (cnijfilter2) when installed: vendor color
+# rendering; fall back to driverless. NB: preset keywords are written for
+# the Canon PPD and are ignored with a warning under the fallback
+CANON_MODEL=$(lpinfo -m 2>/dev/null | grep -i "canon" | grep -i "${CANON_MODEL_MATCH:-G600}" | grep -viE "driverless|everywhere|gutenprint" | head -1 | cut -d" " -f1)
+
+if [ -n "$CANON_MODEL" ]; then
+    echo "Using Canon driver: $CANON_MODEL"
+else
+    echo "Canon driver not found, using driverless queues"
+fi
+
 create_queue () {
     NAME=$1
 
     # remove first (also unregisters colord profiles), then recreate:
-    # self-heals queues that ended up raw on a previous boot
+    # self-heals queues from previous boots
     echo "Creating queue: $NAME"
 
     lpadmin -x "$NAME" 2>/dev/null || true
-    lpadmin \
-        -p "$NAME" \
-        -E \
-        -v "$PRINTER_URI" \
-        -m everywhere
+
+    if [ -n "$CANON_MODEL" ]; then
+        lpadmin \
+            -p "$NAME" \
+            -E \
+            -v "${CANON_PRINTER_URI:-$PRINTER_URI}" \
+            -m "$CANON_MODEL"
+    else
+        lpadmin \
+            -p "$NAME" \
+            -E \
+            -v "$PRINTER_URI" \
+            -m everywhere
+    fi
 }
 
 apply_preset () {
@@ -81,28 +101,12 @@ apply_preset () {
             [ "${key:0:1}" = "#" ] && continue
 
             # server-side queue default: applies to jobs from any client;
-            # lpoptions would only cover lp runs inside this container
-            lpadmin -p "$NAME" -o "$key-default=$value"
+            # lpoptions would only cover lp runs inside this container.
+            # non-fatal: keywords may not exist under the fallback driver
+            lpadmin -p "$NAME" -o "$key-default=$value" \
+                || echo "warn: $NAME rejected $key=$value"
         done < "$FILE"
     fi
-}
-
-# extra queue through Canon's own driver when cnijfilter2 is installed;
-# its color rendering matches the vendor output the driverless path can't
-create_canon_queue () {
-    MATCH="${CANON_MODEL_MATCH:-G600}"
-    MODEL=$(lpinfo -m 2>/dev/null | grep -i "canon" | grep -i "$MATCH" | grep -viE "driverless|everywhere|gutenprint" | head -1 | cut -d" " -f1)
-
-    [ -z "$MODEL" ] && return 0
-
-    echo "Creating queue: photo-canon (driver: $MODEL)"
-
-    lpadmin -x photo-canon 2>/dev/null || true
-    lpadmin \
-        -p photo-canon \
-        -E \
-        -v "${CANON_PRINTER_URI:-$PRINTER_URI}" \
-        -m "$MODEL"
 }
 
 for preset_file in /presets/*.conf
@@ -114,8 +118,6 @@ do
     create_queue "$NAME"
     apply_preset "$NAME"
 done
-
-create_canon_queue
 
 # default queue (lpoptions prints the full option list; not useful in logs)
 lpoptions -d "${DEFAULT_PRESET:-photo}" >/dev/null

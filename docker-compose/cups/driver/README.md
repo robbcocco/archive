@@ -1,8 +1,9 @@
 # Canon cnijfilter2 driver (optional)
 
-Drop Canon's Linux driver `.deb` here and rebuild; the image installs it
-and the entrypoint creates a `photo-canon` queue rendering through Canon's
-own color pipeline (the "vendor look" the driverless queues can't produce).
+Canon's Linux driver `.deb` lives here; the image installs it and the
+entrypoint creates every preset queue through Canon's own color pipeline
+(the "vendor look" driverless can't produce). Without it, queues fall back
+to driverless and preset media keywords are skipped with a warning.
 
 ```sh
 # from Canon's G600 series support page, download
