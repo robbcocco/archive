@@ -27,7 +27,7 @@ Extra files in some stacks:
 | affine | AFFiNE, postgres, redis |
 | beeper | Beeper telegram bridge |
 | calibre | Calibre-Web Automated, book downloader, flare-bypasser |
-| cups | CUPS print server (local build: Dockerfile, cupsd.conf, printer presets) |
+| cups | CUPS print server + drag-and-drop print web UI (local build) |
 | homarr | Homarr dashboard |
 | homebridge | Homebridge |
 | invidious | Invidious, companion, postgres |

@@ -21,3 +21,15 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+  webui:
+    build: ./webui
+    container_name: cups-webui
+    # host network so lp/lpstat reach cupsd on localhost:631
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      CUPS_SERVER: localhost:631
+      WEBUI_PORT: ${WEBUI_PORT:-8631}
+    depends_on:
+      - cups

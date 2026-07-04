@@ -1,0 +1,75 @@
+import os
+import re
+import subprocess
+import tempfile
+
+from flask import Flask, jsonify, render_template, request
+
+CUPS = os.environ.get("CUPS_SERVER", "localhost:631")
+PORT = int(os.environ.get("WEBUI_PORT", "8631"))
+
+# options the form may pass through to lp -o
+ALLOWED_OPTIONS = ("media", "sides", "print-quality", "print-color-mode", "fit-to-page")
+SAFE_VALUE = re.compile(r"^[A-Za-z0-9._-]+$")
+
+app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024
+
+
+def queues():
+    out = subprocess.run(
+        ["lpstat", "-h", CUPS, "-e"], capture_output=True, text=True, timeout=10
+    )
+    return sorted(q for q in out.stdout.split() if q)
+
+
+@app.get("/")
+def index():
+    return render_template("index.html")
+
+
+@app.get("/queues")
+def list_queues():
+    return jsonify(queues())
+
+
+@app.post("/print")
+def print_job():
+    upload = request.files.get("file")
+    queue = request.form.get("queue", "")
+    copies = request.form.get("copies", "1")
+
+    if upload is None or upload.filename == "":
+        return jsonify(error="no file"), 400
+    if queue not in queues():
+        return jsonify(error=f"unknown queue: {queue}"), 400
+    if not copies.isdigit() or not 1 <= int(copies) <= 99:
+        return jsonify(error="copies must be 1-99"), 400
+
+    cmd = ["lp", "-h", CUPS, "-d", queue, "-n", copies, "-t", upload.filename]
+    for key in ALLOWED_OPTIONS:
+        value = request.form.get(key, "")
+        if value:
+            if not SAFE_VALUE.match(value):
+                return jsonify(error=f"bad value for {key}"), 400
+            cmd += ["-o", f"{key}={value}"]
+
+    suffix = os.path.splitext(upload.filename)[1] or ".bin"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        upload.save(tmp.name)
+        path = tmp.name
+    try:
+        result = subprocess.run(
+            cmd + [path], capture_output=True, text=True, timeout=60
+        )
+    finally:
+        os.unlink(path)
+
+    if result.returncode != 0:
+        return jsonify(error=result.stderr.strip() or "lp failed"), 502
+    # "request id is photo-42 (1 file(s))"
+    return jsonify(ok=True, message=result.stdout.strip())
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=PORT)
