@@ -80,7 +80,9 @@ apply_preset () {
             [ -z "$key" ] && continue
             [ "${key:0:1}" = "#" ] && continue
 
-            lpoptions -p "$NAME" -o "$key=$value"
+            # server-side queue default: applies to jobs from any client;
+            # lpoptions would only cover lp runs inside this container
+            lpadmin -p "$NAME" -o "$key-default=$value"
         done < "$FILE"
     fi
 }

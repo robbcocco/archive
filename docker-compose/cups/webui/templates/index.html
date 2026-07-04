@@ -22,8 +22,9 @@
   #drop.hasfile { border-style: solid; border-color: #3c3; padding: .8rem; }
   #drop img, #drop embed {
     max-width: 100%; max-height: 240px; border-radius: 6px; display: block;
-    margin: 0 auto;
+    margin: 0 auto; transition: transform .2s;
   }
+  #drop img.rot { transform: rotate(90deg); max-height: 200px; }
   #drop embed { width: 100%; height: 240px; }
   #drop figcaption {
     font-size: .8rem; opacity: .7; margin-top: .4rem; word-break: break-all;
@@ -91,10 +92,6 @@
       <label for="MediaType">paper type</label>
       <select id="MediaType">
         <option value="">preset default</option>
-        <option value="Com.canon.mtgr">Photo Paper Plus Glossy II</option>
-        <option value="Com.canon.mtluster">Photo Paper Pro Luster</option>
-        <option value="Com.canon.mtmat">Matte Photo Paper</option>
-        <option value="Stationery">plain paper</option>
       </select>
     </div>
     <div>
@@ -143,11 +140,68 @@ const go = document.getElementById("go");
 const status = document.getElementById("status");
 let file = null;
 
+const OPTION_KEYS = ["media", "MediaType", "sides", "print-quality", "print-color-mode", "fit-to-page", "orientation-requested"];
+const VALUE_LABELS = {
+  "print-quality": { "3": "draft", "4": "normal", "5": "best" },
+  "orientation-requested": { "3": "portrait", "4": "landscape" },
+};
+const MEDIA_LABELS = {
+  "Com.canon.mtgr": "Photo Paper Plus Glossy II",
+  "Com.canon.mtluster": "Photo Paper Pro Luster",
+  "Com.canon.mtsemisuper": "Photo Paper Plus Semi-gloss",
+  "Com.canon.mtglossy": "Glossy Photo Paper",
+  "Com.canon.mtmat": "Matte Photo Paper",
+  "Com.canon.mthires": "High Resolution Paper",
+  "Com.canon.mtcardstock": "cardstock",
+  "Com.canon.mtgreeting": "greeting card",
+  "Com.canon.mtinkjet": "inkjet paper",
+  "Com.canon.mtinkjeta": "inkjet paper (A)",
+  "Com.canon.mthagaki": "Hagaki",
+  "Com.canon.mthagakia": "Hagaki (A)",
+  "Com.canon.mthagakiglossy": "Hagaki glossy",
+  "Com.canon.mthagakiglossya": "Hagaki glossy (A)",
+  "Stationery": "plain paper",
+  "Envelope": "envelope",
+  "Photographic": "photo (generic)",
+  "Auto": "auto",
+};
+const queueSel = document.getElementById("queue");
+
 fetch("/queues").then(r => r.json()).then(qs => {
-  const sel = document.getElementById("queue");
-  qs.forEach(q => sel.add(new Option(q, q)));
+  qs.forEach(q => queueSel.add(new Option(q, q)));
   if (qs.length === 0) show("no queues found on the cups server", true);
+  else loadDefaults();
 });
+queueSel.addEventListener("change", loadDefaults);
+
+function friendly(key, value) {
+  const sel = document.getElementById(key);
+  const opt = [...sel.options].find(o => o.value === value);
+  if (opt) return opt.textContent;
+  return (VALUE_LABELS[key] || {})[value] || value;
+}
+
+async function loadDefaults() {
+  if (!queueSel.value) return;
+  let info = { defaults: {}, media_types: [] };
+  try { info = await (await fetch("/queue/" + encodeURIComponent(queueSel.value))).json(); }
+  catch (e) { /* labels just stay generic */ }
+
+  // rebuild paper types from what the queue actually supports
+  const mt = document.getElementById("MediaType");
+  while (mt.options.length > 1) mt.remove(1);
+  (info.media_types || []).forEach(v =>
+    mt.add(new Option(MEDIA_LABELS[v] || v, v)));
+
+  const defs = info.defaults || {};
+  for (const k of OPTION_KEYS) {
+    const first = document.getElementById(k).options[0];
+    if (!first.dataset.base) first.dataset.base = first.textContent;
+    first.textContent = defs[k]
+      ? first.dataset.base + " (" + friendly(k, defs[k]) + ")"
+      : first.dataset.base;
+  }
+}
 
 let previewUrl = null;
 
@@ -181,6 +235,7 @@ function setFile(f) {
   cap.textContent = f.name + " (" + (f.size / 1024 / 1024).toFixed(1) + " MB)";
   fig.appendChild(cap);
   drop.appendChild(fig);
+  applyOrientation();
 }
 
 drop.addEventListener("click", () => fileInput.click());
@@ -190,6 +245,14 @@ fileInput.addEventListener("change", () => setFile(fileInput.files[0]));
 ["dragleave", "drop"].forEach(ev =>
   drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
 drop.addEventListener("drop", e => setFile(e.dataTransfer.files[0]));
+
+// rotate the thumbnail so the preview matches the chosen orientation
+const orientSel = document.getElementById("orientation-requested");
+function applyOrientation() {
+  const img = drop.querySelector("img");
+  if (img) img.classList.toggle("rot", orientSel.value === "4");
+}
+orientSel.addEventListener("change", applyOrientation);
 
 function show(msg, err) {
   status.textContent = msg;

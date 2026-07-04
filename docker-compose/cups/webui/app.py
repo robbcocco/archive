@@ -41,6 +41,39 @@ def list_queues():
     return jsonify(queues())
 
 
+@app.get("/queue/<queue>")
+def queue_info(queue):
+    if queue not in queues():
+        return jsonify(error="unknown queue"), 404
+
+    out = subprocess.run(
+        ["lpoptions", "-h", CUPS, "-p", queue],
+        capture_output=True, text=True, timeout=10,
+    )
+    defaults = {}
+    quality_names = {"Draft": "3", "Normal": "4", "High": "5"}
+    for token in out.stdout.split():
+        if "=" in token:
+            key, value = token.split("=", 1)
+            if key in ALLOWED_OPTIONS:
+                defaults[key] = value
+            elif key == "cupsPrintQuality" and value in quality_names:
+                # PPD queues report quality this way instead of print-quality
+                defaults.setdefault("print-quality", quality_names[value])
+
+    out = subprocess.run(
+        ["lpoptions", "-h", CUPS, "-p", queue, "-l"],
+        capture_output=True, text=True, timeout=10,
+    )
+    media_types = []
+    for line in out.stdout.splitlines():
+        head, _, values = line.partition(":")
+        if head.split("/")[0] == "MediaType":
+            media_types = [v.lstrip("*") for v in values.split()]
+
+    return jsonify(defaults=defaults, media_types=media_types)
+
+
 @app.post("/print")
 def print_job():
     upload = request.files.get("file")
