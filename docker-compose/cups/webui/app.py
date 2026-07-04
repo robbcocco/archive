@@ -9,10 +9,6 @@ from PIL import Image, ImageEnhance, ImageOps
 CUPS = os.environ.get("CUPS_SERVER", "localhost:631")
 PORT = int(os.environ.get("WEBUI_PORT", "8631"))
 
-# compensate for cups-filters' flat rasterization vs the mac/canon pipeline;
-# tune against a reference print
-ENHANCE_SATURATION = float(os.environ.get("ENHANCE_SATURATION", "1.15"))
-ENHANCE_CONTRAST = float(os.environ.get("ENHANCE_CONTRAST", "1.10"))
 
 # options the form may pass through to lp -o
 ALLOWED_OPTIONS = (
@@ -80,12 +76,30 @@ def queue_info(queue):
     return jsonify(defaults=defaults, media_types=media_types)
 
 
-def enhance_image(path):
+# print looks compensating for cups-filters' flat rasterization;
+# "vivid" is tuned to approximate the macOS/AirPrint output
+PROFILES = {
+    "vivid": {"saturation": 1.20, "contrast": 1.12},
+    "punch": {"saturation": 1.35, "contrast": 1.20},
+    "warm": {"saturation": 1.15, "contrast": 1.10, "warmth": 0.06},
+    "soft": {"saturation": 1.05, "contrast": 1.05},
+    "bw": {"saturation": 0.0, "contrast": 1.10},
+}
+
+
+def apply_profile(path, profile):
+    params = PROFILES[profile]
     with Image.open(path) as img:
         img = ImageOps.exif_transpose(img)  # bake rotation before re-saving
         img = img.convert("RGB")
-        img = ImageEnhance.Color(img).enhance(ENHANCE_SATURATION)
-        img = ImageEnhance.Contrast(img).enhance(ENHANCE_CONTRAST)
+        warmth = params.get("warmth")
+        if warmth:
+            r, g, b = img.split()
+            r = r.point(lambda v: min(255, round(v * (1 + warmth))))
+            b = b.point(lambda v: max(0, round(v * (1 - warmth))))
+            img = Image.merge("RGB", (r, g, b))
+        img = ImageEnhance.Color(img).enhance(params.get("saturation", 1))
+        img = ImageEnhance.Contrast(img).enhance(params.get("contrast", 1))
         out = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
         img.save(out.name, "JPEG", quality=95)
     os.unlink(path)
@@ -118,12 +132,16 @@ def print_job():
         upload.save(tmp.name)
         path = tmp.name
 
-    if request.form.get("enhance") == "true":
+    profile = request.form.get("profile", "")
+    if profile:
+        if profile not in PROFILES:
+            os.unlink(path)
+            return jsonify(error=f"unknown profile: {profile}"), 400
         try:
-            path = enhance_image(path)
+            path = apply_profile(path, profile)
         except Exception as exc:
             os.unlink(path)
-            return jsonify(error=f"enhance failed: {exc}"), 400
+            return jsonify(error=f"profile failed: {exc}"), 400
     try:
         result = subprocess.run(
             cmd + [path], capture_output=True, text=True, timeout=60

@@ -128,10 +128,14 @@
       </select>
     </div>
     <div>
-      <label for="enhance">photo enhance</label>
-      <select id="enhance">
-        <option value="">off</option>
-        <option value="true">boost saturation + contrast</option>
+      <label for="profile">color profile (images only, previewed live)</label>
+      <select id="profile">
+        <option value="">off (print as-is)</option>
+        <option value="vivid">vivid — AirPrint-like</option>
+        <option value="punch">punch — max saturation</option>
+        <option value="warm">warm — slight warm cast</option>
+        <option value="soft">soft — gentle lift</option>
+        <option value="bw">black &amp; white</option>
       </select>
     </div>
   </div>
@@ -243,6 +247,7 @@ function setFile(f) {
   fig.appendChild(cap);
   drop.appendChild(fig);
   applyOrientation();
+  applyProfilePreview();
 }
 
 drop.addEventListener("click", () => fileInput.click());
@@ -261,6 +266,21 @@ function applyOrientation() {
 }
 orientSel.addEventListener("change", applyOrientation);
 
+// css approximation of the server-side pillow profiles, for live preview
+const PROFILE_FILTERS = {
+  vivid: "saturate(1.2) contrast(1.12)",
+  punch: "saturate(1.35) contrast(1.2)",
+  warm: "sepia(.15) saturate(1.25) contrast(1.1)",
+  soft: "saturate(1.05) contrast(1.05)",
+  bw: "grayscale(1) contrast(1.1)",
+};
+const profileSel = document.getElementById("profile");
+function applyProfilePreview() {
+  const img = drop.querySelector("img");
+  if (img) img.style.filter = PROFILE_FILTERS[profileSel.value] || "";
+}
+profileSel.addEventListener("change", applyProfilePreview);
+
 function show(msg, err) {
   status.textContent = msg;
   status.className = err ? "err" : "ok";
@@ -274,9 +294,9 @@ go.addEventListener("click", async () => {
   fd.append("copies", document.getElementById("copies").value);
   for (const k of ["media", "MediaType", "sides", "print-quality", "print-color-mode", "fit-to-page", "orientation-requested"])
     fd.append(k, document.getElementById(k).value);
-  // enhancement is a raster operation, only meaningful for images
-  if (file.type.startsWith("image/") && document.getElementById("enhance").value)
-    fd.append("enhance", "true");
+  // profiles are raster operations, only meaningful for images
+  if (file.type.startsWith("image/") && profileSel.value)
+    fd.append("profile", profileSel.value);
 
   go.disabled = true;
   show("sending…");
