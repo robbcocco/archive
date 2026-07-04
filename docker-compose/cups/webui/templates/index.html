@@ -266,18 +266,30 @@ function applyOrientation() {
 }
 orientSel.addEventListener("change", applyOrientation);
 
-// css approximation of the server-side pillow profiles, for live preview
-const PROFILE_FILTERS = {
-  vivid: "saturate(1.2) contrast(1.12)",
-  punch: "saturate(1.35) contrast(1.2)",
-  warm: "sepia(.15) saturate(1.25) contrast(1.1)",
-  soft: "saturate(1.05) contrast(1.05)",
-  bw: "grayscale(1) contrast(1.1)",
-};
+// ask the server to render the preview through the real pillow pipeline
+// (and soft-proof it when a printer ICC profile is mounted)
 const profileSel = document.getElementById("profile");
-function applyProfilePreview() {
+let previewSeq = 0;
+async function applyProfilePreview() {
   const img = drop.querySelector("img");
-  if (img) img.style.filter = PROFILE_FILTERS[profileSel.value] || "";
+  if (!img || !file || !file.type.startsWith("image/")) return;
+  const seq = ++previewSeq;
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("profile", profileSel.value);
+  try {
+    const r = await fetch("/preview", { method: "POST", body: fd });
+    if (!r.ok || seq !== previewSeq) return;
+    const url = URL.createObjectURL(await r.blob());
+    img.onload = () => URL.revokeObjectURL(url);
+    img.src = url;
+    const cap = drop.querySelector("figcaption");
+    if (cap) {
+      const proofed = r.headers.get("X-Soft-Proof") === "1";
+      cap.textContent = cap.textContent.replace(/ · soft-proofed$/, "")
+        + (proofed ? " · soft-proofed" : "");
+    }
+  } catch (e) { /* keep the raw thumbnail */ }
 }
 profileSel.addEventListener("change", applyProfilePreview);
 

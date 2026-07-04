@@ -3,5 +3,9 @@
 # cups runtime state (created by bind mounts on first run)
 docker-compose/cups/data/
 
+# proprietary printer color profiles
+docker-compose/cups/icc/*.icc
+docker-compose/cups/icc/*.icm
+
 # real env files live only on this machine / the host; commit .env.example templates
 docker-compose/*/.env

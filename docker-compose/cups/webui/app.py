@@ -3,8 +3,10 @@ import re
 import subprocess
 import tempfile
 
-from flask import Flask, jsonify, render_template, request
-from PIL import Image, ImageEnhance, ImageOps
+import io
+
+from flask import Flask, jsonify, render_template, request, send_file
+from PIL import Image, ImageCms, ImageEnhance, ImageOps
 
 CUPS = os.environ.get("CUPS_SERVER", "localhost:631")
 PORT = int(os.environ.get("WEBUI_PORT", "8631"))
@@ -87,23 +89,80 @@ PROFILES = {
 }
 
 
+ICC_DIR = "/icc"
+
+
+def printer_icc():
+    if os.path.isdir(ICC_DIR):
+        for name in sorted(os.listdir(ICC_DIR)):
+            if name.lower().endswith((".icc", ".icm")):
+                return os.path.join(ICC_DIR, name)
+    return None
+
+
+def apply_ops(img, params):
+    img = ImageOps.exif_transpose(img)  # bake rotation before re-saving
+    img = img.convert("RGB")
+    warmth = params.get("warmth")
+    if warmth:
+        r, g, b = img.split()
+        r = r.point(lambda v: min(255, round(v * (1 + warmth))))
+        b = b.point(lambda v: max(0, round(v * (1 - warmth))))
+        img = Image.merge("RGB", (r, g, b))
+    img = ImageEnhance.Color(img).enhance(params.get("saturation", 1))
+    img = ImageEnhance.Contrast(img).enhance(params.get("contrast", 1))
+    return img
+
+
 def apply_profile(path, profile):
-    params = PROFILES[profile]
     with Image.open(path) as img:
-        img = ImageOps.exif_transpose(img)  # bake rotation before re-saving
-        img = img.convert("RGB")
-        warmth = params.get("warmth")
-        if warmth:
-            r, g, b = img.split()
-            r = r.point(lambda v: min(255, round(v * (1 + warmth))))
-            b = b.point(lambda v: max(0, round(v * (1 - warmth))))
-            img = Image.merge("RGB", (r, g, b))
-        img = ImageEnhance.Color(img).enhance(params.get("saturation", 1))
-        img = ImageEnhance.Contrast(img).enhance(params.get("contrast", 1))
+        img = apply_ops(img, PROFILES[profile])
         out = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
         img.save(out.name, "JPEG", quality=95)
     os.unlink(path)
     return out.name
+
+
+@app.post("/preview")
+def preview():
+    """Render the thumbnail through the real pillow pipeline; when a printer
+    ICC profile is mounted, additionally soft-proof how the print will look."""
+    upload = request.files.get("file")
+    profile = request.form.get("profile", "")
+    if upload is None or upload.filename == "":
+        return jsonify(error="no file"), 400
+    if profile and profile not in PROFILES:
+        return jsonify(error=f"unknown profile: {profile}"), 400
+
+    try:
+        img = Image.open(upload.stream)
+        img = apply_ops(img, PROFILES[profile] if profile else {})
+        img.thumbnail((640, 640))
+    except Exception as exc:
+        return jsonify(error=f"preview failed: {exc}"), 400
+
+    proofed = False
+    icc = printer_icc()
+    if icc:
+        try:
+            srgb = ImageCms.createProfile("sRGB")
+            transform = ImageCms.buildProofTransform(
+                srgb, srgb, icc, "RGB", "RGB",
+                renderingIntent=ImageCms.Intent.RELATIVE_COLORIMETRIC,
+                proofRenderingIntent=ImageCms.Intent.PERCEPTUAL,
+                flags=ImageCms.Flags.SOFTPROOFING,
+            )
+            img = ImageCms.applyTransform(img, transform)
+            proofed = True
+        except Exception:
+            pass  # bad/unsupported profile: fall back to unproofed preview
+
+    buf = io.BytesIO()
+    img.save(buf, "JPEG", quality=90)
+    buf.seek(0)
+    response = send_file(buf, mimetype="image/jpeg")
+    response.headers["X-Soft-Proof"] = "1" if proofed else "0"
+    return response
 
 
 @app.post("/print")

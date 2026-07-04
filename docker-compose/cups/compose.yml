@@ -32,5 +32,8 @@ services:
     environment:
       CUPS_SERVER: localhost:631
       WEBUI_PORT: ${WEBUI_PORT:-8631}
+    volumes:
+      # drop a Canon .icm/.icc here to enable soft-proofed previews
+      - ./icc:/icc:ro
     depends_on:
       - cups
