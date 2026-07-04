@@ -10,7 +10,8 @@ services:
       CUPS_ADMIN_USER: ${CUPS_ADMIN_USER:-admin}
       CUPS_ADMIN_PASSWORD: ${CUPS_ADMIN_PASSWORD:-}
     volumes:
-      - ./data/spool:/var/spool/cups
+      # spool intentionally not persisted: queue recreation on boot orphans
+      # pending jobs anyway, and stale jobs spam errors at startup
       - ./data/log:/var/log/cups
       # keep the self-signed cert stable across rebuilds so clients
       # don't re-prompt trust every time
