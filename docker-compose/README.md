@@ -1,13 +1,15 @@
 # docker-compose
 
-One directory per stack. Each contains a `compose.yml` and, when needed, a `.env`
-that compose loads automatically for `${VAR}` substitution.
+One directory per stack. Each contains a `compose.yml` and, when needed, a
+`.env.example` template. Real `.env` files are gitignored; compose loads `.env`
+automatically for `${VAR}` substitution.
 
 ## Usage
 
 ```sh
 cd <stack>
-# fill in any `changeme` values in .env first
+cp .env.example .env
+# fill in any `changeme` values in .env
 docker compose up -d
 ```
 

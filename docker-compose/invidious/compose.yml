@@ -28,14 +28,12 @@ services:
         # And make sure to add the routes from the post install when using a reverse proxy!
           public_url: "http://nettools:8282/companion"
         # IT is NOT recommended to use the same key as HMAC KEY. Generate a new key!
-        # Generate with: pwgen 16 1
-        invidious_companion_key: CHANGEME_COMPANION_KEY
+        invidious_companion_key: ${INVIDIOUS_COMPANION_KEY}
         # external_port:
         # domain:
         # https_only: false
         # statistics_enabled: false
-        # Generate with: pwgen 16 1
-        hmac_key: CHANGEME_HMAC_KEY
+        hmac_key: ${INVIDIOUS_HMAC_KEY}
     healthcheck:
       test: wget -nv --tries=1 --spider http://127.0.0.1:3000/api/v1/stats || exit 1
       interval: 30s
@@ -53,7 +51,7 @@ services:
     container_name: invidious-companion
     environment:
     # Must match invidious_companion_key above
-       - SERVER_SECRET_KEY=CHANGEME_COMPANION_KEY
+       - SERVER_SECRET_KEY=${INVIDIOUS_COMPANION_KEY}
     restart: unless-stopped
     # Remove "127.0.0.1:" if used from an external IP
     ports:
