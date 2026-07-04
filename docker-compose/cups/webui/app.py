@@ -75,7 +75,11 @@ def queue_info(queue):
         if head.split("/")[0] == "MediaType":
             media_types = [v.lstrip("*") for v in values.split()]
 
-    return jsonify(defaults=defaults, media_types=media_types)
+    return jsonify(
+        defaults=defaults,
+        media_types=media_types,
+        icc=printer_icc() is not None,
+    )
 
 
 # print looks compensating for cups-filters' flat rasterization;
@@ -114,9 +118,26 @@ def apply_ops(img, params):
     return img
 
 
+def proof_transform(icc):
+    srgb = ImageCms.createProfile("sRGB")
+    return ImageCms.buildProofTransform(
+        srgb, srgb, icc, "RGB", "RGB",
+        renderingIntent=ImageCms.Intent.RELATIVE_COLORIMETRIC,
+        proofRenderingIntent=ImageCms.Intent.PERCEPTUAL,
+        flags=ImageCms.Flags.SOFTPROOFING,
+    )
+
+
 def apply_profile(path, profile):
     with Image.open(path) as img:
-        img = apply_ops(img, PROFILES[profile])
+        if profile == "icc":
+            # gamut-map: sRGB -> printer space (perceptual) -> sRGB.
+            # out-of-gamut colors get compressed the way the vendor driver
+            # would, before the driverless path's own (clipping) transform
+            img = ImageOps.exif_transpose(img).convert("RGB")
+            img = ImageCms.applyTransform(img, proof_transform(printer_icc()))
+        else:
+            img = apply_ops(img, PROFILES[profile])
         out = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
         img.save(out.name, "JPEG", quality=95)
     os.unlink(path)
@@ -131,12 +152,13 @@ def preview():
     profile = request.form.get("profile", "")
     if upload is None or upload.filename == "":
         return jsonify(error="no file"), 400
-    if profile and profile not in PROFILES:
+    if profile and profile != "icc" and profile not in PROFILES:
         return jsonify(error=f"unknown profile: {profile}"), 400
 
     try:
         img = Image.open(upload.stream)
-        img = apply_ops(img, PROFILES[profile] if profile else {})
+        # "icc" has no pillow ops; its preview is the soft-proof itself
+        img = apply_ops(img, PROFILES.get(profile, {}))
         img.thumbnail((640, 640))
     except Exception as exc:
         return jsonify(error=f"preview failed: {exc}"), 400
@@ -145,14 +167,7 @@ def preview():
     icc = printer_icc()
     if icc:
         try:
-            srgb = ImageCms.createProfile("sRGB")
-            transform = ImageCms.buildProofTransform(
-                srgb, srgb, icc, "RGB", "RGB",
-                renderingIntent=ImageCms.Intent.RELATIVE_COLORIMETRIC,
-                proofRenderingIntent=ImageCms.Intent.PERCEPTUAL,
-                flags=ImageCms.Flags.SOFTPROOFING,
-            )
-            img = ImageCms.applyTransform(img, transform)
+            img = ImageCms.applyTransform(img, proof_transform(icc))
             proofed = True
         except Exception:
             pass  # bad/unsupported profile: fall back to unproofed preview
@@ -193,7 +208,10 @@ def print_job():
 
     profile = request.form.get("profile", "")
     if profile:
-        if profile not in PROFILES:
+        if profile == "icc" and printer_icc() is None:
+            os.unlink(path)
+            return jsonify(error="no printer icc profile mounted"), 400
+        if profile != "icc" and profile not in PROFILES:
             os.unlink(path)
             return jsonify(error=f"unknown profile: {profile}"), 400
         try:

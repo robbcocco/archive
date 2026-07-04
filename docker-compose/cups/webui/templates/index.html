@@ -136,6 +136,7 @@
         <option value="warm">warm — slight warm cast</option>
         <option value="soft">soft — gentle lift</option>
         <option value="bw">black &amp; white</option>
+        <option value="icc" id="icc-opt" hidden>ICC gamut-mapped (printer profile)</option>
       </select>
     </div>
   </div>
@@ -203,6 +204,11 @@ async function loadDefaults() {
   while (mt.options.length > 1) mt.remove(1);
   (info.media_types || []).forEach(v =>
     mt.add(new Option(MEDIA_LABELS[v] || v, v)));
+
+  // icc gamut-mapping only offered when a printer profile is mounted
+  const iccOpt = document.getElementById("icc-opt");
+  iccOpt.hidden = !info.icc;
+  if (!info.icc && profileSel.value === "icc") profileSel.value = "";
 
   const defs = info.defaults || {};
   for (const k of OPTION_KEYS) {
