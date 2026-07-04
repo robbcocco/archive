@@ -11,6 +11,7 @@ PORT = int(os.environ.get("WEBUI_PORT", "8631"))
 # options the form may pass through to lp -o
 ALLOWED_OPTIONS = (
     "media",
+    "MediaType",
     "sides",
     "print-quality",
     "print-color-mode",

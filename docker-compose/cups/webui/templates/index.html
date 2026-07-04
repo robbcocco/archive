@@ -76,14 +76,23 @@
   <summary>options (queue preset applies unless overridden)</summary>
   <div>
     <div>
-      <label for="media">media</label>
+      <label for="media">paper size</label>
       <select id="media">
         <option value="">preset default</option>
         <option>A4</option>
         <option>A5</option>
         <option>Letter</option>
-        <option>PhotoPlusGloss2</option>
-        <option value="4x6.Photo">4x6 photo</option>
+        <option value="4x6">4x6</option>
+      </select>
+    </div>
+    <div>
+      <label for="MediaType">paper type</label>
+      <select id="MediaType">
+        <option value="">preset default</option>
+        <option value="Com.canon.mtgr">Photo Paper Plus Glossy II</option>
+        <option value="Com.canon.mtluster">Photo Paper Pro Luster</option>
+        <option value="Com.canon.mtmat">Matte Photo Paper</option>
+        <option value="Stationery">plain paper</option>
       </select>
     </div>
     <div>
@@ -191,7 +200,7 @@ go.addEventListener("click", async () => {
   fd.append("file", file);
   fd.append("queue", document.getElementById("queue").value);
   fd.append("copies", document.getElementById("copies").value);
-  for (const k of ["media", "sides", "print-quality", "print-color-mode", "fit-to-page", "orientation-requested"])
+  for (const k of ["media", "MediaType", "sides", "print-quality", "print-color-mode", "fit-to-page", "orientation-requested"])
     fd.append(k, document.getElementById(k).value);
 
   go.disabled = true;
