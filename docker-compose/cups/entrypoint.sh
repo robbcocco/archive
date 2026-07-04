@@ -48,12 +48,18 @@ done
 
 echo "Printer online."
 
+# presets are the single source of truth: without this, options removed
+# from a preset file would survive restarts via the stored defaults
+rm -f /etc/cups/lpoptions
+
 create_queue () {
     NAME=$1
 
-    # always recreate: self-heals queues that ended up raw on a previous boot
+    # remove first (also unregisters colord profiles), then recreate:
+    # self-heals queues that ended up raw on a previous boot
     echo "Creating queue: $NAME"
 
+    lpadmin -x "$NAME" 2>/dev/null || true
     lpadmin \
         -p "$NAME" \
         -E \
