@@ -90,6 +90,7 @@ create_queue () {
 apply_preset () {
     NAME=$1
     FILE="/presets/${NAME}.conf"
+    WANT_COLOR=""
 
     if [ -f "$FILE" ]; then
         echo "Applying preset $NAME"
@@ -99,6 +100,7 @@ apply_preset () {
         do
             [ -z "$key" ] && continue
             [ "${key:0:1}" = "#" ] && continue
+            [ "$key" = "print-color-mode" ] && WANT_COLOR="$value"
 
             # server-side queue default: applies to jobs from any client;
             # lpoptions would only cover lp runs inside this container.
@@ -106,6 +108,24 @@ apply_preset () {
             lpadmin -p "$NAME" -o "$key-default=$value" \
                 || echo "warn: $NAME rejected $key=$value"
         done < "$FILE"
+    fi
+
+    # PPD queues keep printing from their own ColorModel default (the Canon
+    # PPD ships grayscale) regardless of print-color-mode; align it. Choice
+    # names vary per driver, so pick from what the queue actually offers
+    if [ -n "$WANT_COLOR" ]; then
+        case "$WANT_COLOR" in
+            monochrome) PATTERN='gray|grey|mono' ;;
+            *)          PATTERN='rgb|color' ;;
+        esac
+        CM=$(lpoptions -p "$NAME" -l 2>/dev/null \
+            | sed -n 's/^ColorModel[^:]*: //p' | tr ' ' '\n' | sed 's/^\*//' \
+            | grep -iE -m1 "$PATTERN" || true)
+        if [ -n "$CM" ]; then
+            echo "Aligning ColorModel=$CM on $NAME"
+            lpadmin -p "$NAME" -o "ColorModel-default=$CM" \
+                || echo "warn: $NAME rejected ColorModel=$CM"
+        fi
     fi
 }
 
