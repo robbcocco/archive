@@ -1,15 +1,25 @@
+import hmac
+import json
 import os
 import re
 import subprocess
 import tempfile
+import time
 
 import io
 
 from flask import Flask, jsonify, render_template, request, send_file
 from PIL import Image, ImageCms, ImageEnhance, ImageOps
+from pillow_heif import register_heif_opener
+
+register_heif_opener()
 
 CUPS = os.environ.get("CUPS_SERVER", "localhost:631")
 PORT = int(os.environ.get("WEBUI_PORT", "8631"))
+PRINTER_URI = os.environ.get("PRINTER_URI", "")
+WEBUI_USER = os.environ.get("WEBUI_USER", "print")
+WEBUI_PASSWORD = os.environ.get("WEBUI_PASSWORD", "")
+HISTORY_FILE = "/data/history.jsonl"
 
 
 # options the form may pass through to lp -o
@@ -21,17 +31,49 @@ ALLOWED_OPTIONS = (
     "print-color-mode",
     "fit-to-page",
     "orientation-requested",
+    "page-ranges",
 )
 SAFE_VALUE = re.compile(r"^[A-Za-z0-9._-]+$")
+# page-ranges needs commas: "1-3,5,7-9"
+OPTION_PATTERNS = {"page-ranges": re.compile(r"^\d+(-\d+)?(,\d+(-\d+)?)*$")}
+JOB_ID = re.compile(r"^[A-Za-z0-9_-]+-\d+$")
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024
 
 
+@app.before_request
+def basic_auth():
+    if not WEBUI_PASSWORD or request.path == "/healthz":
+        return None
+    auth = request.authorization
+    if (
+        auth
+        and auth.type == "basic"
+        and hmac.compare_digest(auth.username or "", WEBUI_USER)
+        and hmac.compare_digest(auth.password or "", WEBUI_PASSWORD)
+    ):
+        return None
+    return "", 401, {"WWW-Authenticate": 'Basic realm="print"'}
+
+
+@app.get("/healthz")
+def healthz():
+    return "ok"
+
+
+def run(cmd, timeout=10):
+    """subprocess.run that degrades to rc=1 instead of raising."""
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return subprocess.CompletedProcess(cmd, 1, "", str(exc))
+
+
 def queues():
-    out = subprocess.run(
-        ["lpstat", "-h", CUPS, "-e"], capture_output=True, text=True, timeout=10
-    )
+    out = run(["lpstat", "-h", CUPS, "-e"])
+    if out.returncode != 0:
+        return []
     return sorted(q for q in out.stdout.split() if q)
 
 
@@ -50,10 +92,7 @@ def queue_info(queue):
     if queue not in queues():
         return jsonify(error="unknown queue"), 404
 
-    out = subprocess.run(
-        ["lpoptions", "-h", CUPS, "-p", queue],
-        capture_output=True, text=True, timeout=10,
-    )
+    out = run(["lpoptions", "-h", CUPS, "-p", queue])
     defaults = {}
     quality_names = {"Draft": "3", "Normal": "4", "High": "5"}
     for token in out.stdout.split():
@@ -65,10 +104,7 @@ def queue_info(queue):
                 # PPD queues report quality this way instead of print-quality
                 defaults.setdefault("print-quality", quality_names[value])
 
-    out = subprocess.run(
-        ["lpoptions", "-h", CUPS, "-p", queue, "-l"],
-        capture_output=True, text=True, timeout=10,
-    )
+    out = run(["lpoptions", "-h", CUPS, "-p", queue, "-l"])
     media_types = []
     for line in out.stdout.splitlines():
         head, _, values = line.partition(":")
@@ -80,6 +116,104 @@ def queue_info(queue):
         media_types=media_types,
         icc=printer_icc() is not None,
     )
+
+
+@app.get("/jobs")
+def jobs():
+    out = run(["lpstat", "-h", CUPS, "-o"])
+    result = []
+    for line in out.stdout.splitlines():
+        # "photo-42  guest  230400  Mon 06 Jul 2026 12:00:00 PM UTC"
+        parts = line.split(None, 3)
+        if not parts or not JOB_ID.match(parts[0]):
+            continue
+        queue, _, num = parts[0].rpartition("-")
+        result.append(
+            {
+                "id": parts[0],
+                "queue": queue,
+                "number": num,
+                "size": int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0,
+                "when": parts[3] if len(parts) > 3 else "",
+            }
+        )
+    return jsonify(result)
+
+
+@app.post("/cancel/<job_id>")
+def cancel(job_id):
+    if not JOB_ID.match(job_id):
+        return jsonify(error="bad job id"), 400
+    out = run(["cancel", "-h", CUPS, job_id])
+    if out.returncode != 0:
+        return jsonify(error=out.stderr.strip() or "cancel failed"), 502
+    return jsonify(ok=True)
+
+
+_ink_cache = {"at": 0.0, "data": None}
+
+
+def _ipp_attr(text, name):
+    m = re.search(rf"^\s*{name} \([^)]*\) = (.*)$", text, re.M)
+    return [v.strip() for v in m.group(1).split(",")] if m else []
+
+
+@app.get("/ink")
+def ink():
+    """marker-levels straight from the printer; cached, polling cupsd's
+    upstream on every page load would wake the printer constantly."""
+    if not PRINTER_URI:
+        return jsonify([])
+    if time.time() - _ink_cache["at"] > 300 or _ink_cache["data"] is None:
+        out = run(
+            ["ipptool", "-T", "10", "-tv", PRINTER_URI, "get-printer-attributes.test"],
+            timeout=15,
+        )
+        names = _ipp_attr(out.stdout, "marker-names")
+        levels = _ipp_attr(out.stdout, "marker-levels")
+        colors = _ipp_attr(out.stdout, "marker-colors")
+        data = []
+        for i, name in enumerate(names):
+            try:
+                level = int(levels[i])
+            except (IndexError, ValueError):
+                level = -1
+            if level < 0:  # -1 = unknown per RFC 3805
+                continue
+            data.append(
+                {
+                    "name": name,
+                    "level": level,
+                    "color": colors[i] if i < len(colors) else "",
+                }
+            )
+        _ink_cache.update(at=time.time(), data=data)
+    return jsonify(_ink_cache["data"])
+
+
+def log_history(entry):
+    try:
+        os.makedirs(os.path.dirname(HISTORY_FILE), exist_ok=True)
+        with open(HISTORY_FILE, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+    except OSError:
+        pass  # no /data volume mounted: history simply off
+
+
+@app.get("/history")
+def history():
+    try:
+        with open(HISTORY_FILE) as f:
+            lines = f.readlines()[-30:]
+    except OSError:
+        return jsonify([])
+    entries = []
+    for line in reversed(lines):
+        try:
+            entries.append(json.loads(line))
+        except ValueError:
+            continue
+    return jsonify(entries)
 
 
 # print looks compensating for cups-filters' flat rasterization;
@@ -144,6 +278,31 @@ def apply_profile(path, profile):
     return out.name
 
 
+def is_pdf(upload):
+    return upload.mimetype == "application/pdf" or upload.filename.lower().endswith(
+        ".pdf"
+    )
+
+
+def pdf_first_page(upload):
+    """Rasterize page 1 so PDFs go through the same preview pipeline
+    (and get soft-proofed) instead of a raw <embed>."""
+    with tempfile.NamedTemporaryFile(suffix=".pdf") as tmp:
+        upload.save(tmp.name)
+        prefix = tmp.name + "-pg1"
+        out = run(
+            ["pdftoppm", "-png", "-r", "120", "-f", "1", "-l", "1",
+             "-singlefile", tmp.name, prefix],
+            timeout=30,
+        )
+        if out.returncode != 0:
+            raise ValueError(out.stderr.strip() or "pdftoppm failed")
+        img = Image.open(prefix + ".png")
+        img.load()
+        os.unlink(prefix + ".png")
+    return img
+
+
 @app.post("/preview")
 def preview():
     """Render the thumbnail through the real pillow pipeline; when a printer
@@ -156,9 +315,14 @@ def preview():
         return jsonify(error=f"unknown profile: {profile}"), 400
 
     try:
-        img = Image.open(upload.stream)
-        # "icc" has no pillow ops; its preview is the soft-proof itself
-        img = apply_ops(img, PROFILES.get(profile, {}))
+        if is_pdf(upload):
+            # profiles are image-only at print time; preview page 1 unmodified
+            img = pdf_first_page(upload)
+            img = apply_ops(img, {})
+        else:
+            img = Image.open(upload.stream)
+            # "icc" has no pillow ops; its preview is the soft-proof itself
+            img = apply_ops(img, PROFILES.get(profile, {}))
         img.thumbnail((640, 640))
     except Exception as exc:
         return jsonify(error=f"preview failed: {exc}"), 400
@@ -193,12 +357,14 @@ def print_job():
     if not copies.isdigit() or not 1 <= int(copies) <= 99:
         return jsonify(error="copies must be 1-99"), 400
 
+    options = {}
     cmd = ["lp", "-h", CUPS, "-d", queue, "-n", copies, "-t", upload.filename]
     for key in ALLOWED_OPTIONS:
         value = request.form.get(key, "")
         if value:
-            if not SAFE_VALUE.match(value):
+            if not OPTION_PATTERNS.get(key, SAFE_VALUE).match(value):
                 return jsonify(error=f"bad value for {key}"), 400
+            options[key] = value
             cmd += ["-o", f"{key}={value}"]
 
     suffix = os.path.splitext(upload.filename)[1] or ".bin"
@@ -208,6 +374,9 @@ def print_job():
 
     profile = request.form.get("profile", "")
     if profile:
+        if is_pdf(upload):
+            os.unlink(path)
+            return jsonify(error="color profiles are for images only"), 400
         if profile == "icc" and printer_icc() is None:
             os.unlink(path)
             return jsonify(error="no printer icc profile mounted"), 400
@@ -220,16 +389,29 @@ def print_job():
             os.unlink(path)
             return jsonify(error=f"profile failed: {exc}"), 400
     try:
-        result = subprocess.run(
-            cmd + [path], capture_output=True, text=True, timeout=60
-        )
+        result = run(cmd + [path], timeout=60)
     finally:
         os.unlink(path)
 
     if result.returncode != 0:
         return jsonify(error=result.stderr.strip() or "lp failed"), 502
+
     # "request id is photo-42 (1 file(s))"
-    return jsonify(ok=True, message=result.stdout.strip())
+    message = result.stdout.strip()
+    m = re.search(r"request id is (\S+)", message)
+    job_id = m.group(1) if m else ""
+    log_history(
+        {
+            "ts": int(time.time()),
+            "file": upload.filename,
+            "queue": queue,
+            "copies": int(copies),
+            "options": options,
+            "profile": profile,
+            "job": job_id,
+        }
+    )
+    return jsonify(ok=True, message=message, job=job_id)
 
 
 if __name__ == "__main__":

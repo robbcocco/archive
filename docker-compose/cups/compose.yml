@@ -1,9 +1,16 @@
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
 services:
   cups:
     build: .
     container_name: cups
     network_mode: host
     restart: unless-stopped
+    logging: *logging
     environment:
       PRINTER_URI: ${PRINTER_URI}
       CANON_PRINTER_URI: ${CANON_PRINTER_URI:-}
@@ -30,11 +37,25 @@ services:
     # host network so lp/lpstat reach cupsd on localhost:631
     network_mode: host
     restart: unless-stopped
+    logging: *logging
     environment:
       CUPS_SERVER: localhost:631
       WEBUI_PORT: ${WEBUI_PORT:-8631}
+      # queried directly (ipptool) for ink levels
+      PRINTER_URI: ${PRINTER_URI}
+      # basic auth for the print page; leave password empty to disable
+      WEBUI_USER: ${WEBUI_USER:-print}
+      WEBUI_PASSWORD: ${WEBUI_PASSWORD:-}
     volumes:
       # drop a Canon .icm/.icc here to enable soft-proofed previews
       - ./icc:/icc:ro
+      # print history (history.jsonl)
+      - ./data/webui:/data
     depends_on:
-      - cups
+      cups:
+        condition: service_healthy
+    healthcheck:
+      test: curl -fsS http://localhost:${WEBUI_PORT:-8631}/healthz || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 3
