@@ -17,7 +17,6 @@ WORKDIR /app
 COPY app.py .
 COPY templates templates
 
-# shell form so WEBUI_PORT expands; threads because jobs/ink polling is
-# I/O-bound subprocess waiting
-CMD gunicorn --workers 2 --threads 4 --timeout 120 \
-    --bind 0.0.0.0:${WEBUI_PORT:-8631} app:app
+# sh -c so WEBUI_PORT expands, exec so gunicorn is PID 1 and receives
+# SIGTERM; threads because jobs/ink polling is I/O-bound subprocess waiting
+CMD ["sh", "-c", "exec gunicorn --workers 2 --threads 4 --timeout 120 --bind 0.0.0.0:${WEBUI_PORT:-8631} app:app"]
