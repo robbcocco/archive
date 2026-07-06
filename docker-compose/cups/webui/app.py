@@ -148,6 +148,18 @@ def queue_options(queue):
     return groups
 
 
+@app.get("/queue/<queue>/raw")
+def queue_raw(queue):
+    """Raw lpoptions output, for debugging what a queue really defaults to."""
+    if queue not in queues():
+        return jsonify(error="unknown queue"), 404
+    stored = run(["lpoptions", "-h", CUPS, "-p", queue])
+    groups = run(["lpoptions", "-h", CUPS, "-p", queue, "-l"])
+    body = "# lpoptions -p " + queue + "\n" + stored.stdout.replace(" ", "\n")
+    body += "\n# lpoptions -p " + queue + " -l\n" + groups.stdout
+    return body, 200, {"Content-Type": "text/plain; charset=utf-8"}
+
+
 @app.get("/jobs")
 def jobs():
     out = run(["lpstat", "-h", CUPS, "-o"])
