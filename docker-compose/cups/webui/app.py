@@ -104,18 +104,39 @@ def queue_info(queue):
                 # PPD queues report quality this way instead of print-quality
                 defaults.setdefault("print-quality", quality_names[value])
 
-    out = run(["lpoptions", "-h", CUPS, "-p", queue, "-l"])
-    media_types = []
-    for line in out.stdout.splitlines():
-        head, _, values = line.partition(":")
-        if head.split("/")[0] == "MediaType":
-            media_types = [v.lstrip("*") for v in values.split()]
+    groups = queue_options(queue)
+    media_types = next(
+        (g["choices"] for g in groups if g["key"] == "MediaType"), []
+    )
 
     return jsonify(
         defaults=defaults,
         media_types=media_types,
+        options=groups,
         icc=printer_icc() is not None,
     )
+
+
+def queue_options(queue):
+    """Every option group the queue's PPD/IPP exposes: key, human label,
+    choices, default (the starred choice)."""
+    out = run(["lpoptions", "-h", CUPS, "-p", queue, "-l"])
+    groups = []
+    for line in out.stdout.splitlines():
+        head, _, values = line.partition(":")
+        if not values.strip():
+            continue
+        key, _, label = head.partition("/")
+        choices, default = [], ""
+        for v in values.split():
+            if v.startswith("*"):
+                v = v[1:]
+                default = v
+            choices.append(v)
+        groups.append(
+            {"key": key, "label": label or key, "choices": choices, "default": default}
+        )
+    return groups
 
 
 @app.get("/jobs")
@@ -284,14 +305,15 @@ def is_pdf(upload):
     )
 
 
-def pdf_first_page(upload):
-    """Rasterize page 1 so PDFs go through the same preview pipeline
+def pdf_page(upload, page=1):
+    """Rasterize one page so PDFs go through the same preview pipeline
     (and get soft-proofed) instead of a raw <embed>."""
     with tempfile.NamedTemporaryFile(suffix=".pdf") as tmp:
+        upload.stream.seek(0)
         upload.save(tmp.name)
-        prefix = tmp.name + "-pg1"
+        prefix = tmp.name + "-pg"
         out = run(
-            ["pdftoppm", "-png", "-r", "120", "-f", "1", "-l", "1",
+            ["pdftoppm", "-png", "-r", "120", "-f", str(page), "-l", str(page),
              "-singlefile", tmp.name, prefix],
             timeout=30,
         )
@@ -309,6 +331,7 @@ def preview():
     ICC profile is mounted, additionally soft-proof how the print will look."""
     upload = request.files.get("file")
     profile = request.form.get("profile", "")
+    color_mode = request.form.get("print-color-mode", "")
     if upload is None or upload.filename == "":
         return jsonify(error="no file"), 400
     if profile and profile != "icc" and profile not in PROFILES:
@@ -316,13 +339,26 @@ def preview():
 
     try:
         if is_pdf(upload):
-            # profiles are image-only at print time; preview page 1 unmodified
-            img = pdf_first_page(upload)
+            # preview the first page that will actually print
+            page = 1
+            m = re.match(r"^(\d+)", request.form.get("page-ranges", ""))
+            if m:
+                page = max(1, int(m.group(1)))
+            try:
+                img = pdf_page(upload, page)
+            except ValueError:
+                if page == 1:
+                    raise
+                img = pdf_page(upload)  # range past the last page
+            # profiles are image-only at print time; page previews unmodified
             img = apply_ops(img, {})
         else:
             img = Image.open(upload.stream)
             # "icc" has no pillow ops; its preview is the soft-proof itself
             img = apply_ops(img, PROFILES.get(profile, {}))
+        if color_mode == "monochrome":
+            # driver grays out after profile ops; mirror that order
+            img = ImageOps.grayscale(img).convert("RGB")
         img.thumbnail((640, 640))
     except Exception as exc:
         return jsonify(error=f"preview failed: {exc}"), 400
@@ -366,6 +402,21 @@ def print_job():
                 return jsonify(error=f"bad value for {key}"), 400
             options[key] = value
             cmd += ["-o", f"{key}={value}"]
+
+    # PPD-specific options (CNIJ*, Resolution, ...): accept anything the
+    # queue itself advertises, value must be one of its listed choices
+    handled = set(ALLOWED_OPTIONS) | {"file", "queue", "copies", "profile"}
+    advertised = {g["key"]: set(g["choices"]) for g in queue_options(queue)}
+    for key, value in request.form.items():
+        if key in handled or not value:
+            continue
+        choices = advertised.get(key)
+        if choices is None:
+            continue  # not a printer option: ignore
+        if value not in choices or not SAFE_VALUE.match(value):
+            return jsonify(error=f"bad value for {key}"), 400
+        options[key] = value
+        cmd += ["-o", f"{key}={value}"]
 
     suffix = os.path.splitext(upload.filename)[1] or ".bin"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:

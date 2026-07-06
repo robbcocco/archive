@@ -5,104 +5,153 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>print</title>
 <style>
-  :root { color-scheme: light dark; --accent: #4a9eff; }
+  :root {
+    color-scheme: light dark;
+    --accent: #3b82f6;
+    --accent-2: #2563eb;
+    --bg: light-dark(#f4f5f7, #0e0f12);
+    --card: light-dark(#ffffff, #1a1c21);
+    --field: light-dark(#f8f9fa, #24262c);
+    --border: light-dark(#e4e6ea, #2e3138);
+    --text-dim: light-dark(#6b7280, #9ca3af);
+    --ok: #22a55b;
+    --err: #ef4444;
+    --radius: 16px;
+  }
   * { box-sizing: border-box; }
   body {
-    font-family: -apple-system, system-ui, sans-serif;
-    max-width: 60rem; margin: 2rem auto; padding: 0 1rem;
+    font-family: -apple-system, system-ui, "Segoe UI", sans-serif;
+    background: var(--bg);
+    max-width: 62rem; margin: 0 auto; padding: 1.5rem 1rem 3rem;
     display: flex; flex-direction: column; gap: 1rem;
   }
-  header { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
-  h1 { font-size: 1.25rem; margin: 0; }
-  h2 { font-size: .95rem; margin: 0 0 .6rem; opacity: .8; }
+  header { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; padding: 0 .2rem; }
+  h1 { font-size: 1.3rem; margin: 0; letter-spacing: -.02em; }
+  h2 { font-size: .8rem; margin: 0 0 .7rem; text-transform: uppercase;
+       letter-spacing: .06em; color: var(--text-dim); }
 
   #ink { display: flex; gap: .4rem; flex-wrap: wrap; margin-left: auto; }
   .pill {
     display: inline-flex; align-items: center; gap: .35rem;
-    font-size: .75rem; padding: .25rem .55rem; border-radius: 99px;
-    border: 1px solid #8884;
+    font-size: .74rem; padding: .28rem .6rem; border-radius: 99px;
+    background: var(--card); border: 1px solid var(--border);
   }
   .pill i {
-    width: .65rem; height: .65rem; border-radius: 50%;
+    width: .62rem; height: .62rem; border-radius: 50%;
     background: var(--c, #888); border: 1px solid #0002;
   }
-  .pill.low { color: #e55; border-color: #e556; font-weight: 600; }
+  .pill.low { color: var(--err); border-color: var(--err); font-weight: 600; }
 
-  main { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: start; }
-  @media (max-width: 760px) { main { grid-template-columns: 1fr; } }
+  main { display: grid; grid-template-columns: 1.1fr 1fr; gap: 1rem; align-items: start; }
+  @media (max-width: 780px) { main { grid-template-columns: 1fr; } }
 
   .card {
-    border: 1px solid #8883; border-radius: 14px; padding: 1rem;
-    background: color-mix(in srgb, CanvasText 3%, Canvas);
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 1.1rem;
+    box-shadow: 0 1px 2px #0000000a, 0 8px 24px -18px #00000040;
   }
 
   #drop {
-    border: 2px dashed #8888; border-radius: 12px;
-    padding: 1rem; text-align: center; cursor: pointer; min-height: 12rem;
+    border: 2px dashed var(--border); border-radius: 12px;
+    padding: 1rem; text-align: center; cursor: pointer; min-height: 13rem;
     display: flex; flex-direction: column; align-items: center;
-    justify-content: center; gap: .6rem;
+    justify-content: center; gap: .7rem;
     transition: border-color .15s, background .15s;
   }
-  #drop.over { border-color: var(--accent); background: #4a9eff22; }
-  #drop.hasfile { border-style: solid; border-color: #8885; cursor: default; }
+  #drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  #drop.hasfile { border-style: solid; cursor: default; }
+  #placeholder { color: var(--text-dim); line-height: 1.6; }
+  #placeholder b { display: block; font-size: 1.6rem; }
 
   #paper {
-    background: #fff; border-radius: 2px;
-    box-shadow: 0 1px 3px #0004, 0 4px 16px #0002;
+    position: relative; background: #fff; border-radius: 2px;
+    box-shadow: 0 1px 3px #0004, 0 10px 28px -8px #0003;
     display: flex; align-items: center; justify-content: center;
     height: 300px; max-width: 100%; padding: var(--m, 10px);
+    transition: aspect-ratio .2s, width .2s, padding .2s;
   }
   #paper.bare { background: none; box-shadow: none; padding: 0; height: auto; }
   #paper img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
-  #paper.bare img { max-height: 300px; border-radius: 6px; }
-  #caption { font-size: .78rem; opacity: .7; word-break: break-all; }
+  #paper.bare img { max-height: 300px; border-radius: 8px; }
+  #copies-badge {
+    position: absolute; top: -.6rem; right: -.6rem;
+    background: var(--accent); color: #fff; font-size: .72rem; font-weight: 700;
+    padding: .2rem .5rem; border-radius: 99px; box-shadow: 0 2px 6px #0003;
+  }
+  #caption { font-size: .78rem; color: var(--text-dim); word-break: break-all; }
+  #effective {
+    display: flex; flex-wrap: wrap; gap: .3rem; justify-content: center;
+  }
+  #effective span {
+    font-size: .7rem; padding: .18rem .5rem; border-radius: 99px;
+    background: var(--field); border: 1px solid var(--border); color: var(--text-dim);
+  }
 
-  #chips { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .8rem; }
+  #chips { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .9rem; }
   .chip {
     display: inline-flex; align-items: center; gap: .4rem; max-width: 100%;
-    font-size: .78rem; padding: .3rem .6rem; border-radius: 99px;
-    border: 1px solid #8885; cursor: pointer;
+    font-size: .78rem; padding: .32rem .65rem; border-radius: 99px;
+    background: var(--field); border: 1px solid var(--border); cursor: pointer;
+    transition: border-color .15s;
   }
-  .chip.sel { border-color: var(--accent); background: #4a9eff22; }
+  .chip:hover { border-color: var(--accent); }
+  .chip.sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--card)); }
   .chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .chip b { font-weight: 400; opacity: .6; cursor: pointer; padding: 0 .1rem; }
-  .chip b:hover { opacity: 1; color: #e55; }
+  .chip b { font-weight: 400; opacity: .55; cursor: pointer; padding: 0 .1rem; }
+  .chip b:hover { opacity: 1; color: var(--err); }
 
-  .col { display: flex; flex-direction: column; gap: .8rem; }
+  .col { display: flex; flex-direction: column; gap: .9rem; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; }
   select, input, button {
-    font: inherit; padding: .5rem .6rem; border-radius: 8px;
-    border: 1px solid #8886; width: 100%; background: Canvas; color: CanvasText;
+    font: inherit; padding: .5rem .65rem; border-radius: 10px;
+    border: 1px solid var(--border); width: 100%;
+    background: var(--field); color: CanvasText;
+    transition: border-color .15s, box-shadow .15s;
   }
-  label { font-size: .78rem; opacity: .7; display: block; margin-bottom: .2rem; }
-  .row { display: flex; gap: .6rem; }
-  .row > div { flex: 1; }
-  details.opts { border: 1px solid #8884; border-radius: 8px; padding: .6rem; }
-  details.opts > div { display: flex; flex-direction: column; gap: .6rem; margin-top: .6rem; }
+  select:focus-visible, input:focus-visible {
+    outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+  }
+  label { font-size: .74rem; color: var(--text-dim); display: block; margin-bottom: .25rem; }
   button.primary {
-    background: var(--accent); color: white; border: none; cursor: pointer;
-    padding: .7rem; font-weight: 600;
+    background: linear-gradient(180deg, var(--accent), var(--accent-2));
+    color: white; border: none; cursor: pointer;
+    padding: .75rem; font-weight: 600; font-size: 1rem;
+    box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--accent) 60%, transparent);
+    transition: filter .15s, transform .05s;
   }
+  button.primary:hover:not(:disabled) { filter: brightness(1.08); }
+  button.primary:active:not(:disabled) { transform: translateY(1px); }
   button:disabled { opacity: .4; cursor: default; }
-  #status { min-height: 1.2rem; font-size: .9rem; white-space: pre-wrap; }
-  #status.err { color: #e55; }
-  #status.ok { color: #3a3; }
+  #status { min-height: 1.2rem; font-size: .88rem; white-space: pre-wrap; }
+  #status.err { color: var(--err); }
+  #status.ok { color: var(--ok); }
 
   ul.plain { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .4rem; }
   ul.plain li {
     display: flex; align-items: center; gap: .6rem; font-size: .85rem;
-    padding: .4rem .6rem; border: 1px solid #8883; border-radius: 8px;
+    padding: .45rem .65rem; background: var(--field);
+    border: 1px solid var(--border); border-radius: 10px;
   }
   ul.plain .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  ul.plain .dim { opacity: .6; font-size: .78rem; }
+  ul.plain .dim { color: var(--text-dim); font-size: .76rem; }
   ul.plain button {
-    width: auto; padding: .25rem .6rem; font-size: .78rem; cursor: pointer;
-    background: none; border: 1px solid #8886; color: inherit;
+    width: auto; padding: .25rem .6rem; font-size: .76rem; cursor: pointer;
+    background: none; border: 1px solid var(--border); color: inherit;
   }
   ul.plain button:hover { border-color: var(--accent); color: var(--accent); }
-  ul.plain button.danger:hover { border-color: #e55; color: #e55; }
-  details.card > summary { cursor: pointer; font-size: .95rem; opacity: .8; }
+  ul.plain button.danger:hover { border-color: var(--err); color: var(--err); }
+  details.opts {
+    border: 1px solid var(--border); border-radius: 10px; padding: .6rem .7rem;
+  }
+  details.opts > summary { cursor: pointer; font-size: .8rem; color: var(--text-dim); }
+  details.opts > .grid2 { margin-top: .7rem; }
+  details.card > summary {
+    cursor: pointer; font-size: .8rem; text-transform: uppercase;
+    letter-spacing: .06em; color: var(--text-dim);
+  }
   details.card > ul { margin-top: .8rem; }
-  .empty { opacity: .5; font-size: .85rem; }
+  .empty { color: var(--text-dim); font-size: .85rem; }
 </style>
 </head>
 <body>
@@ -114,8 +163,12 @@
 <main>
 <section class="card">
   <div id="drop">
-    <div id="placeholder">drop files here<br>or click to choose</div>
-    <div id="paper" class="bare" hidden><img id="preview" alt=""></div>
+    <div id="placeholder"><b>⊕</b>drop files here<br>or click to choose</div>
+    <div id="paper" class="bare" hidden>
+      <img id="preview" alt="">
+      <div id="copies-badge" hidden></div>
+    </div>
+    <div id="effective" hidden></div>
     <div id="caption" hidden></div>
   </div>
   <div id="chips"></div>
@@ -124,7 +177,7 @@
 </section>
 
 <section class="card col">
-  <div class="row">
+  <div class="grid2">
     <div>
       <label for="queue">queue</label>
       <select id="queue"></select>
@@ -133,8 +186,18 @@
       <label for="copies">copies</label>
       <input id="copies" type="number" min="1" max="99" value="1">
     </div>
-  </div>
-  <div class="row">
+    <div>
+      <label for="media">paper size</label>
+      <select id="media">
+        <option value="">preset default</option>
+      </select>
+    </div>
+    <div>
+      <label for="MediaType">paper type</label>
+      <select id="MediaType">
+        <option value="">preset default</option>
+      </select>
+    </div>
     <div>
       <label for="orientation-requested">orientation</label>
       <select id="orientation-requested">
@@ -147,76 +210,56 @@
       <label for="page-ranges">pages (PDF)</label>
       <input id="page-ranges" placeholder="all, e.g. 1-3,5" inputmode="numeric">
     </div>
-  </div>
-
-  <details class="opts">
-    <summary>options (queue preset applies unless overridden)</summary>
     <div>
-      <div>
-        <label for="media">paper size</label>
-        <select id="media">
-          <option value="">preset default</option>
-          <option>A4</option>
-          <option>A5</option>
-          <option>Letter</option>
-          <option value="4x6">4x6 (10x15)</option>
-          <option value="4x6.Borderless">4x6 borderless</option>
-          <option value="5x7">5x7 (13x18)</option>
-        </select>
-      </div>
-      <div>
-        <label for="MediaType">paper type</label>
-        <select id="MediaType">
-          <option value="">preset default</option>
-        </select>
-      </div>
-      <div>
-        <label for="sides">sides</label>
-        <select id="sides">
-          <option value="">preset default</option>
-          <option value="one-sided">one-sided</option>
-          <option value="two-sided-long-edge">two-sided (long edge)</option>
-          <option value="two-sided-short-edge">two-sided (short edge)</option>
-        </select>
-      </div>
-      <div>
-        <label for="print-quality">quality</label>
-        <select id="print-quality">
-          <option value="">preset default</option>
-          <option value="3">draft</option>
-          <option value="4">normal</option>
-          <option value="5">best</option>
-        </select>
-      </div>
-      <div>
-        <label for="print-color-mode">color</label>
-        <select id="print-color-mode">
-          <option value="">preset default</option>
-          <option value="color">color</option>
-          <option value="monochrome">black &amp; white</option>
-        </select>
-      </div>
-      <div>
-        <label for="fit-to-page">scaling</label>
-        <select id="fit-to-page">
-          <option value="">as-is</option>
-          <option value="true">fit to page</option>
-        </select>
-      </div>
-      <div>
-        <label for="profile">color profile (images only, previewed live)</label>
-        <select id="profile">
-          <option value="">off (print as-is)</option>
-          <option value="vivid">vivid — AirPrint-like</option>
-          <option value="punch">punch — max saturation</option>
-          <option value="warm">warm — slight warm cast</option>
-          <option value="soft">soft — gentle lift</option>
-          <option value="bw">black &amp; white</option>
-          <option value="icc" id="icc-opt" hidden>ICC gamut-mapped (printer profile)</option>
-        </select>
-      </div>
+      <label for="print-quality">quality</label>
+      <select id="print-quality">
+        <option value="">preset default</option>
+        <option value="3">draft</option>
+        <option value="4">normal</option>
+        <option value="5">best</option>
+      </select>
     </div>
+    <div>
+      <label for="print-color-mode">color</label>
+      <select id="print-color-mode">
+        <option value="">preset default</option>
+        <option value="color">color</option>
+        <option value="monochrome">black &amp; white</option>
+      </select>
+    </div>
+    <div>
+      <label for="sides">sides</label>
+      <select id="sides">
+        <option value="">preset default</option>
+        <option value="one-sided">one-sided</option>
+        <option value="two-sided-long-edge">two-sided (long edge)</option>
+        <option value="two-sided-short-edge">two-sided (short edge)</option>
+      </select>
+    </div>
+    <div>
+      <label for="fit-to-page">scaling</label>
+      <select id="fit-to-page">
+        <option value="">as-is</option>
+        <option value="true">fit to page</option>
+      </select>
+    </div>
+  </div>
+  <details class="opts" id="advanced" hidden>
+    <summary>all printer options</summary>
+    <div class="grid2" id="adv-grid"></div>
   </details>
+  <div>
+    <label for="profile">color profile (images only, previewed live)</label>
+    <select id="profile">
+      <option value="">off (print as-is)</option>
+      <option value="vivid">vivid — AirPrint-like</option>
+      <option value="punch">punch — max saturation</option>
+      <option value="warm">warm — slight warm cast</option>
+      <option value="soft">soft — gentle lift</option>
+      <option value="bw">black &amp; white</option>
+      <option value="icc" id="icc-opt" hidden>ICC gamut-mapped (printer profile)</option>
+    </select>
+  </div>
 
   <button id="go" class="primary" disabled>print</button>
   <div id="status"></div>
@@ -283,6 +326,14 @@ const MEDIA_DIMS = {
   "A4": [210, 297], "A5": [148, 210], "Letter": [216, 279],
   "4x6": [102, 152], "5x7": [127, 178],
 };
+const PAGE_LABELS = {
+  "4x6": "4x6 (10x15)", "4x6.Borderless": "4x6 borderless",
+  "5x7": "5x7 (13x18)", "5x7.Borderless": "5x7 borderless",
+  "A4.Borderless": "A4 borderless", "Custom.WIDTHxHEIGHT": "custom",
+};
+// groups already covered by the main controls
+const ADV_SKIP = new Set(["PageSize", "MediaType", "cupsPrintQuality",
+  "ColorModel", "Duplex"]);
 
 let files = [], selected = -1, queueDefaults = {};
 
@@ -293,6 +344,11 @@ function isPdf(f) {
   return f.type === "application/pdf" || /\.pdf$/i.test(f.name);
 }
 function mb(n) { return (n / 1024 / 1024).toFixed(1) + " MB"; }
+// what will actually print: explicit choice, else the queue preset
+function effective(k) { return $(k).value || queueDefaults[k] || ""; }
+function debounce(fn, ms) {
+  let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+}
 
 // ---- queues / defaults -------------------------------------------------
 
@@ -305,9 +361,10 @@ queueSel.addEventListener("change", loadDefaults);
 
 function friendly(key, value) {
   const sel = $(key);
-  const opt = [...sel.options].find(o => o.value === value);
-  if (opt) return opt.textContent;
-  return (VALUE_LABELS[key] || {})[value] || value;
+  const opt = sel && [...sel.options].find(o => o.value === value);
+  if (opt && opt.value) return opt.textContent;
+  return (VALUE_LABELS[key] || {})[value] || MEDIA_LABELS[value]
+    || PAGE_LABELS[value] || value;
 }
 
 async function loadDefaults() {
@@ -316,11 +373,21 @@ async function loadDefaults() {
   try { info = await (await fetch("/queue/" + encodeURIComponent(queueSel.value))).json(); }
   catch (e) { /* labels just stay generic */ }
 
-  // rebuild paper types from what the queue actually supports
+  // rebuild paper sizes/types from what the queue actually supports
+  const groups = info.options || [];
   const mt = $("MediaType");
   while (mt.options.length > 1) mt.remove(1);
   (info.media_types || []).forEach(v =>
     mt.add(new Option(MEDIA_LABELS[v] || v, v)));
+
+  const sizes = (groups.find(g => g.key === "PageSize") || {}).choices || [];
+  const media = $("media");
+  const keepMedia = media.value;
+  while (media.options.length > 1) media.remove(1);
+  sizes.forEach(v => media.add(new Option(PAGE_LABELS[v] || v, v)));
+  if ([...media.options].some(o => o.value === keepMedia)) media.value = keepMedia;
+
+  buildAdvanced(groups);
 
   // icc gamut-mapping only offered when a printer profile is mounted
   $("icc-opt").hidden = !info.icc;
@@ -335,6 +402,38 @@ async function loadDefaults() {
       : first.dataset.base;
   }
   applyLayout();
+  updatePreview();
+}
+
+// every PPD/IPP option group the queue advertises, minus the ones the
+// main controls already cover; values submitted under their real keys
+function buildAdvanced(groups) {
+  const box = $("adv-grid");
+  box.innerHTML = "";
+  const shown = groups.filter(g =>
+    !ADV_SKIP.has(g.key) && g.choices.length > 1);
+  $("advanced").hidden = shown.length === 0;
+  shown.forEach(g => {
+    const wrap = document.createElement("div");
+    const label = document.createElement("label");
+    label.textContent = g.label;
+    label.htmlFor = "adv-" + g.key;
+    const sel = document.createElement("select");
+    sel.id = "adv-" + g.key;
+    sel.dataset.key = g.key;
+    sel.add(new Option(g.default ? `default (${g.default})` : "default", ""));
+    g.choices.forEach(c => sel.add(new Option(c, c)));
+    wrap.append(label, sel);
+    box.appendChild(wrap);
+  });
+}
+
+function advancedValues() {
+  const out = {};
+  document.querySelectorAll("#adv-grid select").forEach(s => {
+    if (s.value) out[s.dataset.key] = s.value;
+  });
+  return out;
 }
 
 // ---- file handling -----------------------------------------------------
@@ -364,6 +463,7 @@ function render() {
   $("placeholder").hidden = files.length > 0;
   $("paper").hidden = files.length === 0;
   $("caption").hidden = files.length === 0;
+  $("effective").hidden = files.length === 0;
 
   const chips = $("chips");
   chips.innerHTML = "";
@@ -390,9 +490,9 @@ function render() {
 
   // profiles are raster ops: images only
   const sel = files[selected];
-  const imagesOnly = sel && !isImage(sel);
-  profileSel.disabled = !!imagesOnly;
-  profileSel.title = imagesOnly ? "color profiles apply to images only" : "";
+  const notImage = sel && !isImage(sel);
+  profileSel.disabled = !!notImage;
+  profileSel.title = notImage ? "color profiles apply to images only" : "";
 }
 
 drop.addEventListener("click", () => { if (!files.length) fileInput.click(); });
@@ -404,13 +504,14 @@ fileInput.addEventListener("change", () => { addFiles(fileInput.files); fileInpu
   drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
 drop.addEventListener("drop", e => addFiles(e.dataTransfer.files));
 
-// ---- preview + paper frame ----------------------------------------------
+// ---- preview: renders exactly what the selected options will print --------
 
 let previewSeq = 0;
 
 async function updatePreview() {
   const img = $("preview"), cap = $("caption");
   const f = files[selected];
+  updateBadges();
   if (!f) { img.removeAttribute("src"); return; }
 
   cap.textContent = f.name + " (" + mb(f.size) + ")";
@@ -418,25 +519,28 @@ async function updatePreview() {
   if (!isImage(f) && !isPdf(f)) {
     img.removeAttribute("src");
     $("paper").hidden = true;
+    $("effective").hidden = true;
     cap.textContent = "📄 " + cap.textContent;
     return;
   }
   $("paper").hidden = false;
 
   // instant local thumbnail while the server renders (heic: browser can't)
-  if (isImage(f) && !/\.(heic|heif)$/i.test(f.name)) {
+  if (isImage(f) && !/\.(heic|heif)$/i.test(f.name) && !img.src) {
     const url = URL.createObjectURL(f);
     img.onload = () => URL.revokeObjectURL(url);
     img.src = url;
   }
   applyLayout();
 
-  // server renders through the real pillow pipeline
-  // (and soft-proofs when a printer ICC profile is mounted)
+  // server renders through the real pillow pipeline: profile ops,
+  // monochrome, the PDF page that will print, soft-proof if ICC mounted
   const seq = ++previewSeq;
   const fd = new FormData();
   fd.append("file", f);
   fd.append("profile", isImage(f) ? profileSel.value : "");
+  fd.append("print-color-mode", effective("print-color-mode"));
+  if (isPdf(f)) fd.append("page-ranges", $("page-ranges").value.replace(/\s/g, ""));
   try {
     const r = await fetch("/preview", { method: "POST", body: fd });
     if (!r.ok || seq !== previewSeq) return;
@@ -447,14 +551,51 @@ async function updatePreview() {
     cap.textContent = f.name + " (" + mb(f.size) + ")" + (proofed ? " · soft-proofed" : "");
   } catch (e) { /* keep the local thumbnail */ }
 }
+const updatePreviewSoon = debounce(updatePreview, 400);
 profileSel.addEventListener("change", updatePreview);
+$("print-color-mode").addEventListener("change", updatePreview);
+$("page-ranges").addEventListener("input", () => {
+  if (files[selected] && isPdf(files[selected])) updatePreviewSoon();
+});
+
+// copies badge + effective-settings chips under the preview
+function updateBadges() {
+  const badge = $("copies-badge");
+  const n = parseInt($("copies").value, 10) || 1;
+  badge.hidden = n < 2;
+  badge.textContent = "×" + n;
+
+  const box = $("effective");
+  box.innerHTML = "";
+  if (!files[selected]) return;
+  const parts = [];
+  const media = effective("media");
+  if (media) parts.push(friendly("media", media));
+  const mt = effective("MediaType");
+  if (mt) parts.push(MEDIA_LABELS[mt] || mt);
+  const q = effective("print-quality");
+  if (q) parts.push(VALUE_LABELS["print-quality"][q] || q);
+  parts.push(effective("print-color-mode") === "monochrome" ? "b&w" : "color");
+  const sides = effective("sides");
+  if (sides.startsWith("two")) parts.push("two-sided");
+  if (effective("fit-to-page")) parts.push("fit to page");
+  parts.forEach(p => {
+    const s = document.createElement("span");
+    s.textContent = p;
+    box.appendChild(s);
+  });
+}
+$("copies").addEventListener("input", updateBadges);
+["MediaType", "print-quality", "sides", "fit-to-page"].forEach(id =>
+  $(id).addEventListener("change", updateBadges));
 
 // draw the paper frame: media aspect ratio, margins unless borderless
 function applyLayout() {
   const paper = $("paper"), img = $("preview");
-  const mediaVal = $("media").value || queueDefaults["media"] || "";
+  const mediaVal = effective("media");
   const base = mediaVal.split(".")[0];
   const dims = MEDIA_DIMS[base];
+  updateBadges();
   if (!dims || !files[selected]) {
     paper.className = "bare";
     paper.style.aspectRatio = paper.style.width = "";
@@ -462,8 +603,7 @@ function applyLayout() {
   }
 
   let [w, h] = dims;
-  const orient = $("orientation-requested").value
-    || queueDefaults["orientation-requested"] || "";
+  const orient = effective("orientation-requested");
   if (orient === "4") [w, h] = [h, w];
   else if (!orient && img.naturalWidth > img.naturalHeight) [w, h] = [h, w];
 
@@ -496,6 +636,7 @@ go.addEventListener("click", async () => {
     fd.append("queue", queueSel.value);
     fd.append("copies", $("copies").value);
     for (const k of OPTION_KEYS) fd.append(k, $(k).value);
+    for (const [k, v] of Object.entries(advancedValues())) fd.append(k, v);
     if (isPdf(f)) fd.append("page-ranges", $("page-ranges").value.replace(/\s/g, ""));
     if (isImage(f) && profileSel.value) fd.append("profile", profileSel.value);
 
@@ -617,6 +758,9 @@ async function applySettings(e) {
   }
   $("copies").value = e.copies || 1;
   for (const k of OPTION_KEYS) $(k).value = (e.options || {})[k] || "";
+  document.querySelectorAll("#adv-grid select").forEach(s => {
+    s.value = (e.options || {})[s.dataset.key] || "";
+  });
   $("page-ranges").value = (e.options || {})["page-ranges"] || "";
   profileSel.value = e.profile || "";
   applyLayout();
