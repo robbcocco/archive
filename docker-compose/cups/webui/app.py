@@ -103,6 +103,15 @@ def queue_info(queue):
             elif key == "cupsPrintQuality" and value in quality_names:
                 # PPD queues report quality this way instead of print-quality
                 defaults.setdefault("print-quality", quality_names[value])
+            elif key == "ColorModel":
+                # PPD queues report color the same way; explicit
+                # print-color-mode (direct assignment above) still wins
+                defaults.setdefault(
+                    "print-color-mode",
+                    "monochrome"
+                    if re.search(r"gray|grey|mono|^k", value, re.I)
+                    else "color",
+                )
 
     groups = queue_options(queue)
     media_types = next(
@@ -350,15 +359,20 @@ def preview():
                 if page == 1:
                     raise
                 img = pdf_page(upload)  # range past the last page
+            # rendered at 120dpi, so px/120 = the true page size
+            dpi = 120
             # profiles are image-only at print time; page previews unmodified
             img = apply_ops(img, {})
         else:
             img = Image.open(upload.stream)
+            # cups imagetopdf assumes 128ppi when the file reports none
+            dpi = img.info.get("dpi", (0,))[0] or 128
             # "icc" has no pillow ops; its preview is the soft-proof itself
             img = apply_ops(img, PROFILES.get(profile, {}))
         if color_mode == "monochrome":
             # driver grays out after profile ops; mirror that order
             img = ImageOps.grayscale(img).convert("RGB")
+        px_w, px_h = img.size
         img.thumbnail((640, 640))
     except Exception as exc:
         return jsonify(error=f"preview failed: {exc}"), 400
@@ -377,6 +391,10 @@ def preview():
     buf.seek(0)
     response = send_file(buf, mimetype="image/jpeg")
     response.headers["X-Soft-Proof"] = "1" if proofed else "0"
+    # original raster size + density: lets the client draw "as-is"
+    # scaling at true physical size on the paper frame
+    response.headers["X-Image-Px"] = f"{px_w}x{px_h}"
+    response.headers["X-Image-DPI"] = str(round(dpi))
     return response
 
 
